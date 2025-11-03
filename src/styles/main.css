@@ -1,0 +1,141 @@
+/* Global text contrast improvements */
+.main .block-container {
+    color: #1f1f1f;
+}
+
+/* Decision cards with better contrast */
+.decision-card {
+    background-color: #ffffff;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    margin: 0.5rem 0;
+    border-left: 4px solid #4CAF50;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    color: #212121;
+}
+.decision-card strong {
+    color: #000000;
+    font-size: 1.1em;
+    font-weight: 600;
+}
+.decision-card em {
+    color: #424242;
+    font-style: normal;
+    font-weight: 500;
+}
+.decision-card small {
+    color: #616161;
+    font-size: 0.9em;
+    line-height: 1.5;
+    display: block;
+    margin-top: 0.5rem;
+}
+
+/* Agent-specific border colors with better contrast */
+.agent-scout {
+    border-left-color: #1976D2;
+    border-left-width: 4px;
+}
+.agent-analyst {
+    border-left-color: #F57C00;
+    border-left-width: 4px;
+}
+.agent-synthesizer {
+    border-left-color: #7B1FA2;
+    border-left-width: 4px;
+}
+.agent-coordinator {
+    border-left-color: #388E3C;
+    border-left-width: 4px;
+}
+
+/* NIM badges with improved contrast */
+.nim-badge {
+    display: inline-block;
+    padding: 0.35rem 0.65rem;
+    border-radius: 0.25rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+.nim-reasoning {
+    background-color: #FFF59D;
+    color: #E65100;
+    border: 1px solid #FFC107;
+}
+.nim-embedding {
+    background-color: #B3E5FC;
+    color: #004D40;
+    border: 1px solid #0288D1;
+}
+
+/* Metric cards with better text contrast */
+.metric-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #ffffff;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    text-align: center;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+}
+
+/* Button styling */
+.stButton>button {
+    width: 100%;
+}
+
+/* Improved text colors throughout */
+h1, h2, h3, h4, h5, h6 {
+    color: #1a1a1a !important;
+}
+
+/* Better contrast for markdown text */
+.main .markdown-text-container {
+    color: #212121;
+}
+
+/* Info boxes with better text contrast */
+.stInfo {
+    background-color: #E3F2FD;
+    border-left: 4px solid #2196F3;
+    color: #0D47A1;
+}
+
+/* Success messages with better contrast */
+.stSuccess {
+    background-color: #E8F5E9;
+    border-left: 4px solid #4CAF50;
+    color: #1B5E20;
+}
+
+/* Error messages with better contrast */
+.stError {
+    background-color: #FFEBEE;
+    border-left: 4px solid #F44336;
+    color: #B71C1C;
+}
+
+/* Warning messages with better contrast */
+.stWarning {
+    background-color: #FFF8E1;
+    border-left: 4px solid #FF9800;
+    color: #E65100;
+}
+
+/* Sidebar text contrast */
+.css-1d391kg {
+    color: #1f1f1f;
+}
+
+/* Table text contrast */
+.dataframe {
+    color: #212121;
+}
+
+/* Footer text */
+.footer {
+    color: #424242;
+}

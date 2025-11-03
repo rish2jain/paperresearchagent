@@ -1,0 +1,163 @@
+/* Mobile-first responsive design */
+@media (max-width: 768px) {
+    /* Stack columns on mobile */
+    .stColumn {
+        width: 100% !important;
+        margin-bottom: 1rem;
+    }
+
+    /* Reduce padding on mobile */
+    .main .block-container {
+        padding: 1rem !important;
+    }
+
+    /* Smaller text on mobile */
+    h1 { font-size: 1.5rem !important; }
+    h2 { font-size: 1.25rem !important; }
+    h3 { font-size: 1.1rem !important; }
+
+    /* Full-width buttons on mobile */
+    .stButton > button {
+        width: 100%;
+        min-height: 48px; /* Touch-friendly */
+    }
+
+    /* Collapsible sidebar on mobile */
+    .css-1d391kg {
+        max-width: 100% !important;
+    }
+
+    /* Stack metric cards */
+    .metric-card {
+        margin-bottom: 1rem;
+    }
+
+    /* Better spacing for decision cards */
+    .decision-card {
+        margin: 0.75rem 0;
+        padding: 1rem;
+    }
+
+    /* Hide less critical elements on mobile */
+    .hide-mobile {
+        display: none !important;
+    }
+}
+
+@media (max-width: 480px) {
+    /* Extra small screens */
+    .main .block-container {
+        padding: 0.75rem !important;
+    }
+
+    /* Even smaller text */
+    h1 { font-size: 1.25rem !important; }
+
+    /* Compact sidebar */
+    .sidebar .sidebar-content {
+        padding: 0.5rem;
+    }
+}
+
+/* Touch-friendly interactive elements */
+@media (hover: none) and (pointer: coarse) {
+    /* Larger touch targets */
+    button, a, input, select {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    /* More spacing between interactive elements */
+    .stButton > button {
+        margin-bottom: 0.5rem;
+    }
+}
+
+/* Responsive tables */
+@media (max-width: 768px) {
+    .dataframe {
+        font-size: 0.85rem;
+    }
+
+    /* Horizontal scroll for wide tables */
+    .dataframe-wrapper {
+        overflow-x: auto;
+    }
+}
+
+/* Responsive charts/graphs */
+@media (max-width: 768px) {
+    [data-testid="stImage"] {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+/* Mobile-optimized sidebar */
+@media (max-width: 768px) {
+    .css-1d391kg {
+        position: fixed;
+        top: 0;
+        left: -100%;
+        width: 80% !important;
+        height: 100vh;
+        z-index: 999;
+        transition: left 0.3s;
+    }
+
+    .css-1d391kg[aria-expanded="true"] {
+        left: 0;
+    }
+}
+
+/* Mobile menu toggle (hidden on desktop) */
+.mobile-menu-toggle {
+    display: none;
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 1000;
+    background: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    font-size: 1.5rem;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+@media (max-width: 768px) {
+    .mobile-menu-toggle {
+        display: block;
+    }
+}
+
+/* Better form inputs on mobile */
+@media (max-width: 768px) {
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+        font-size: 16px !important; /* Prevents zoom on iOS */
+        padding: 12px !important;
+        min-height: 44px !important;
+    }
+}
+
+/* Collapsible sections for mobile */
+.mobile-collapsible {
+    cursor: pointer;
+}
+
+@media (max-width: 768px) {
+    .mobile-collapsible::before {
+        content: "▼ ";
+        margin-right: 0.5rem;
+    }
+
+    .mobile-collapsible.collapsed::before {
+        content: "▶ ";
+    }
+}
