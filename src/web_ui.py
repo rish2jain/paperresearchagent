@@ -12,6 +12,13 @@ import logging
 from typing import Dict, Optional, Tuple, Any, List
 from functools import lru_cache
 from utils.session_manager import SessionManager
+from visualization_utils import (
+    create_source_distribution_chart,
+    create_year_distribution_chart,
+    create_citation_scatter,
+    create_theme_importance_chart,
+    create_contradiction_network,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -847,7 +854,25 @@ def render_papers_summary(papers: List[Dict]) -> None:
         
         if len(years) > 5:
             st.caption(f"... and {len(years) - 5} more years")
-    
+
+    # Add interactive visualizations
+    st.markdown("#### 📊 Data Visualizations")
+
+    # Source distribution chart
+    source_chart = create_source_distribution_chart(papers)
+    if source_chart:
+        st.plotly_chart(source_chart, use_container_width=True)
+
+    # Year distribution chart
+    year_chart = create_year_distribution_chart(papers)
+    if year_chart:
+        st.plotly_chart(year_chart, use_container_width=True)
+
+    # Citation scatter (if citation data available)
+    citation_chart = create_citation_scatter(papers)
+    if citation_chart:
+        st.plotly_chart(citation_chart, use_container_width=True)
+
     st.markdown("---")
 
 
@@ -1475,7 +1500,91 @@ if start_button and query:
                 f"Completed in {time_elapsed:.1f} seconds. "
                 f"Your advisor will love the transparency—see exactly why agents made each decision."
             )
-            
+
+            # Research Insights Hero Section (Phase 1 - Priority 1)
+            st.markdown("## 🎯 Key Research Insights at a Glance")
+
+            # Extract data for hero section
+            themes = result.get("common_themes", [])
+            contradictions = result.get("contradictions", [])
+            research_gaps = result.get("research_gaps", [])
+            papers_analyzed = result.get("papers_analyzed", 0)
+
+            themes_count = len(themes) if themes else 0
+            contradictions_count = len(contradictions) if contradictions else 0
+            gaps_count = len(research_gaps) if research_gaps else 0
+
+            # Create 4-column metrics dashboard
+            hero_col1, hero_col2, hero_col3, hero_col4 = st.columns(4)
+
+            with hero_col1:
+                st.metric(
+                    label="🔍 Common Themes",
+                    value=themes_count,
+                    help="Major patterns across all papers"
+                )
+                if themes and len(themes) > 0:
+                    # Show preview of first theme
+                    first_theme = themes[0][:60] + "..." if len(themes[0]) > 60 else themes[0]
+                    st.caption(f"*Preview:* {first_theme}")
+
+            with hero_col2:
+                # Check if any contradictions are high impact
+                has_high_impact = any(
+                    c.get("impact", "").upper() == "HIGH"
+                    for c in contradictions
+                ) if contradictions else False
+
+                st.metric(
+                    label="⚡ Contradictions",
+                    value=contradictions_count,
+                    help="Conflicting findings between papers"
+                )
+                if contradictions_count > 0:
+                    if has_high_impact:
+                        st.caption("⚠️ **Critical:** High-impact conflict")
+                    else:
+                        first_contradiction = contradictions[0]
+                        conflict_preview = first_contradiction.get("conflict", "")[:60] + "..." if len(first_contradiction.get("conflict", "")) > 60 else first_contradiction.get("conflict", "")
+                        st.caption(f"*Preview:* {conflict_preview}")
+
+            with hero_col3:
+                # Check for high-opportunity gaps
+                has_high_opportunity = gaps_count > 2  # More than 2 gaps = high opportunity
+
+                st.metric(
+                    label="🎯 Research Gaps",
+                    value=gaps_count,
+                    help="Unexplored areas for future research"
+                )
+                if gaps_count > 0:
+                    if has_high_opportunity:
+                        st.caption("💡 **Opportunity:** Multiple gaps found")
+                    else:
+                        first_gap = research_gaps[0][:60] + "..." if len(research_gaps[0]) > 60 else research_gaps[0]
+                        st.caption(f"*Preview:* {first_gap}")
+
+            with hero_col4:
+                # Calculate source diversity (unique sources)
+                papers = result.get("papers", [])
+                unique_sources = len(set(p.get("source", "Unknown") for p in papers)) if papers else 0
+
+                st.metric(
+                    label="📚 Papers Analyzed",
+                    value=papers_analyzed,
+                    help="Total papers synthesized"
+                )
+                st.caption(f"*From {unique_sources} different sources*")
+
+            # Critical alert banner if high-impact contradictions exist
+            if has_high_impact:
+                st.error(
+                    "🚨 **CRITICAL ALERT:** High-impact contradictions detected! "
+                    "Review the contradictions section below immediately to understand conflicting research findings."
+                )
+
+            st.markdown("---")
+
             # Decision Timeline (Phase 2.1) - Show chronological agent decisions
             if decisions:
                 with st.expander("🔍 View Agent Decision Timeline", expanded=False):
@@ -1822,39 +1931,259 @@ if start_button and query:
                             f"<strong style='color: #1565C0;'>{i}.</strong> <span style='color: #212121;'>{theme}</span>",
                             unsafe_allow_html=True,
                         )
+
+                    # Add theme importance visualization
+                    st.markdown("---")
+                    st.markdown("#### 📊 Theme Prevalence Analysis")
+                    papers = result.get("papers", [])
+                    theme_chart = create_theme_importance_chart(themes, papers)
+                    if theme_chart:
+                        st.plotly_chart(theme_chart, use_container_width=True)
                 else:
                     st.info("No common themes identified.")
 
-            # Contradictions
-            with st.expander("⚡ Contradictions Found"):
-                contradictions = result.get("contradictions", [])
-                if contradictions:
-                    for i, contradiction in enumerate(contradictions, 1):
-                        st.markdown(
-                            f"""
-                        <div style='color: #212121; line-height: 1.8;'>
-                        <strong style='color: #1565C0; font-size: 1.1em;'>Contradiction {i}:</strong><br>
-                        - <strong style='color: #000000;'>{contradiction.get("paper1", "Paper A")}</strong> says: <span style='color: #424242;'>{contradiction.get("claim1", "N/A")}</span><br>
-                        - <strong style='color: #000000;'>{contradiction.get("paper2", "Paper B")}</strong> says: <span style='color: #424242;'>{contradiction.get("claim2", "N/A")}</span><br>
-                        - <strong style='color: #D32F2F;'>Conflict:</strong> <span style='color: #616161;'>{contradiction.get("conflict", "N/A")}</span>
-                        </div>
-                        """,
-                            unsafe_allow_html=True,
-                        )
-                else:
-                    st.info("No contradictions found.")
+            # Contradictions - Enhanced with context and impact classification
+            contradictions = result.get("contradictions", [])
+            if contradictions:
+                st.markdown(
+                    "<h3 style='color: #D32F2F; margin-top: 2rem;'>⚡ Contradictions Found</h3>",
+                    unsafe_allow_html=True,
+                )
 
-            # Research Gaps
-            with st.expander("🎯 Research Gaps Identified"):
-                gaps = result.get("research_gaps", [])
-                if gaps:
-                    for gap in gaps:
+                for i, contradiction in enumerate(contradictions, 1):
+                    # Determine impact level and color
+                    impact = contradiction.get("impact", "MEDIUM").upper()
+                    impact_colors = {
+                        "HIGH": ("🔴", "#D32F2F"),
+                        "MEDIUM": ("🟡", "#F57C00"),
+                        "LOW": ("🟢", "#388E3C")
+                    }
+                    impact_icon, impact_color = impact_colors.get(impact, ("🟡", "#F57C00"))
+
+                    # Get conflict description for title
+                    conflict_desc = contradiction.get("conflict", "")
+                    title_text = conflict_desc[:80] + "..." if len(conflict_desc) > 80 else conflict_desc
+
+                    # Create expander with impact-based auto-expansion
+                    with st.expander(
+                        f"{impact_icon} Contradiction {i}: {title_text}",
+                        expanded=(impact == "HIGH")
+                    ):
+                        # Two-column comparison
+                        col1, col2 = st.columns(2)
+
+                        with col1:
+                            st.info("**Paper 1**")
+                            st.markdown(f"**Title:** {contradiction.get('paper1', 'Paper A')}")
+                            st.markdown(f"**Claim:** {contradiction.get('claim1', 'N/A')}")
+
+                            # Show sample size if available
+                            if "sample_size_1" in contradiction:
+                                st.caption(f"Sample size: {contradiction['sample_size_1']}")
+
+                        with col2:
+                            st.warning("**Paper 2**")
+                            st.markdown(f"**Title:** {contradiction.get('paper2', 'Paper B')}")
+                            st.markdown(f"**Claim:** {contradiction.get('claim2', 'N/A')}")
+
+                            # Show sample size if available
+                            if "sample_size_2" in contradiction:
+                                st.caption(f"Sample size: {contradiction['sample_size_2']}")
+
+                        # Conflict description
                         st.markdown(
-                            f"<div style='color: #212121; line-height: 1.6;'>• <span style='color: #424242;'>{gap}</span></div>",
-                            unsafe_allow_html=True,
+                            f"<div style='background-color: #FFEBEE; padding: 1rem; border-radius: 4px; margin-top: 1rem;'>"
+                            f"<strong style='color: {impact_color};'>Conflict:</strong> "
+                            f"<span style='color: #212121;'>{conflict_desc}</span>"
+                            f"</div>",
+                            unsafe_allow_html=True
                         )
-                else:
-                    st.info("No research gaps identified.")
+
+                        # Context section
+                        st.markdown("---")
+                        st.markdown("**Analysis Context**")
+
+                        # Statistical significance
+                        if "statistical_significance" in contradiction:
+                            sig = contradiction["statistical_significance"]
+                            st.info(f"📊 **Statistical Significance:** {sig}")
+
+                        # Likely cause
+                        if "likely_cause" in contradiction:
+                            cause = contradiction["likely_cause"]
+                            st.success(f"🔍 **Likely Cause:** {cause}")
+
+                        # Resolution
+                        if "resolution" in contradiction:
+                            resolution = contradiction["resolution"]
+                            st.info(f"💡 **Suggested Resolution:** {resolution}")
+
+                        # Impact explanation
+                        if "impact_explanation" in contradiction:
+                            explanation = contradiction["impact_explanation"]
+                            st.markdown(
+                                f"<div style='background-color: #FFF3E0; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem;'>"
+                                f"<strong>Impact:</strong> {explanation}"
+                                f"</div>",
+                                unsafe_allow_html=True
+                            )
+
+                        # Confidence intervals if available
+                        if "confidence_interval_1" in contradiction or "confidence_interval_2" in contradiction:
+                            st.caption("**Confidence Intervals:**")
+                            ci_col1, ci_col2 = st.columns(2)
+                            with ci_col1:
+                                if "confidence_interval_1" in contradiction:
+                                    st.caption(f"Paper 1: {contradiction['confidence_interval_1']}")
+                            with ci_col2:
+                                if "confidence_interval_2" in contradiction:
+                                    st.caption(f"Paper 2: {contradiction['confidence_interval_2']}")
+
+                # Add contradiction network visualization
+                if len(contradictions) >= 2:
+                    st.markdown("---")
+                    st.markdown("#### 🕸️ Contradiction Network")
+                    st.caption("Visual representation of papers with conflicting claims")
+                    papers = result.get("papers", [])
+                    network_chart = create_contradiction_network(contradictions, papers)
+                    if network_chart:
+                        st.plotly_chart(network_chart, use_container_width=True)
+            else:
+                st.info("No contradictions found.")
+
+            # Research Gaps with Opportunity Assessment (Phase 1, Priority 3)
+            gaps = result.get("research_gaps", [])
+            gaps_count = len(gaps) if gaps else 0
+            st.markdown(f"### 🎯 Research Gaps & Opportunities ({gaps_count} identified)")
+
+            if gaps:
+                for i, gap in enumerate(gaps, 1):
+                    # Determine if gap is rich (dict) or simple (string)
+                    if isinstance(gap, dict):
+                        gap_text = gap.get("gap", "Unknown gap")
+                        opportunity_score = gap.get("opportunity_score", 0.5)
+                        novelty = gap.get("novelty_score", 0.5)
+                        feasibility = gap.get("feasibility_score", 0.5)
+                        impact = gap.get("impact_level", "MEDIUM")
+                        coverage = gap.get("coverage_percent", 0)
+                        total_papers = gap.get("total_papers", 0)
+                        covered_papers = gap.get("covered_papers", 0)
+                        next_steps = gap.get("suggested_next_steps", [])
+                        difficulty = gap.get("difficulty_level", "MEDIUM")
+                        barriers = gap.get("implementation_barriers", [])
+                    else:
+                        # Simple string gap
+                        gap_text = str(gap)
+                        opportunity_score = 0.5
+                        novelty = 0.5
+                        feasibility = 0.5
+                        impact = "MEDIUM"
+                        coverage = 0
+                        total_papers = 0
+                        covered_papers = 0
+                        next_steps = []
+                        difficulty = "MEDIUM"
+                        barriers = []
+
+                    # Classify opportunity level
+                    if opportunity_score >= 0.8:
+                        header_emoji = "🟢"
+                        header_label = "HIGH OPPORTUNITY"
+                        header_color = "#2E7D32"
+                        expanded = True
+                    elif opportunity_score >= 0.5:
+                        header_emoji = "🟡"
+                        header_label = "MEDIUM OPPORTUNITY"
+                        header_color = "#F57C00"
+                        expanded = False
+                    else:
+                        header_emoji = "🔵"
+                        header_label = "EXPLORATORY"
+                        header_color = "#1565C0"
+                        expanded = False
+
+                    # Create expander with opportunity classification
+                    with st.expander(
+                        f"{header_emoji} {header_label} - Gap {i}: {gap_text[:80]}{'...' if len(gap_text) > 80 else ''}",
+                        expanded=expanded
+                    ):
+                        # Full gap description
+                        st.markdown(
+                            f"<div style='color: #212121; line-height: 1.6; margin-bottom: 1rem;'><strong>Research Gap:</strong> {gap_text}</div>",
+                            unsafe_allow_html=True
+                        )
+
+                        # Opportunity Assessment Section (only for rich gaps)
+                        if isinstance(gap, dict):
+                            st.markdown("#### 📊 Opportunity Assessment")
+
+                            # 3-column metrics
+                            col1, col2, col3 = st.columns(3)
+
+                            with col1:
+                                st.metric(
+                                    label="Novelty Score",
+                                    value=f"{int(novelty * 100)}%",
+                                    help="How novel/unique this research direction is"
+                                )
+
+                            with col2:
+                                st.metric(
+                                    label="Feasibility Score",
+                                    value=f"{int(feasibility * 100)}%",
+                                    help="How feasible this research direction is to pursue"
+                                )
+
+                            with col3:
+                                impact_color = {"HIGH": "🔴", "MEDIUM": "🟡", "LOW": "🟢"}.get(impact, "🟡")
+                                st.metric(
+                                    label="Impact Level",
+                                    value=f"{impact_color} {impact}",
+                                    help="Expected impact if this gap is addressed"
+                                )
+
+                            # Coverage Analysis
+                            if total_papers > 0:
+                                st.markdown("#### 📈 Coverage Analysis")
+                                coverage_percent = int(coverage)
+                                st.markdown(
+                                    f"**{coverage_percent}% covered** by {covered_papers} papers out of {total_papers} total"
+                                )
+                                st.progress(coverage / 100)
+
+                            # Suggested Next Steps
+                            if next_steps:
+                                st.markdown("#### 🚀 Suggested Next Steps")
+                                for step in next_steps:
+                                    st.markdown(f"• {step}")
+
+                            # Implementation Considerations
+                            if difficulty or barriers:
+                                st.markdown("#### ⚙️ Implementation Considerations")
+
+                                if difficulty:
+                                    difficulty_color = {
+                                        "LOW": "#2E7D32",
+                                        "MEDIUM": "#F57C00",
+                                        "HIGH": "#C62828"
+                                    }.get(difficulty, "#F57C00")
+                                    st.markdown(
+                                        f"**Difficulty Level:** <span style='color: {difficulty_color}; font-weight: bold;'>{difficulty}</span>",
+                                        unsafe_allow_html=True
+                                    )
+
+                                if barriers:
+                                    st.markdown("**Barriers to Implementation:**")
+                                    for barrier in barriers:
+                                        st.markdown(f"• {barrier}")
+                        else:
+                            # Simple gap - show generic opportunity message
+                            st.info(
+                                f"💡 **Opportunity:** This gap has an estimated opportunity score of {int(opportunity_score * 100)}%. "
+                                "Consider exploring this area for potential research contributions."
+                            )
+            else:
+                st.info("No research gaps identified.")
 
             # Extract papers from result (needed for bias detection and citations)
             papers = result.get("papers", [])
