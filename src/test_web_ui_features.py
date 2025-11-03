@@ -18,6 +18,12 @@ class MockColumn:
     def __exit__(self, *args):
         pass
 
+class MockExpander:
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        pass
+
 class MockSidebar:
     def __enter__(self):
         return self
@@ -37,7 +43,15 @@ class MockStreamlit:
         self.sidebar = MockSidebar()
         
     def columns(self, n):
-        return [MockColumn() for _ in range(n)]
+        # Handle both integer (st.columns(3)) and list (st.columns([1, 2, 1]))
+        if isinstance(n, list):
+            num_columns = len(n)
+        else:
+            num_columns = n
+        return [MockColumn() for _ in range(num_columns)]
+    
+    def expander(self, *args, **kwargs):
+        return MockExpander()
     
     def slider(self, *args, **kwargs):
         return kwargs.get('value', 10)

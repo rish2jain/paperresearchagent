@@ -27,16 +27,25 @@ async def test_reasoning_nim_complete():
     # Mock session and response
     mock_response = Mock()
     mock_response.status = 200
-    mock_response.json = AsyncMock(return_value={
+    mock_response_data = {
         "choices": [{"text": "Test completion"}]
-    })
+    }
+    
+    async def mock_json():
+        return mock_response_data
+    
+    mock_response = AsyncMock()
+    mock_response.json = mock_json
+    mock_response.status = 200
+    mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+    mock_response.__aexit__ = AsyncMock(return_value=None)
     
     with patch('aiohttp.ClientSession') as mock_session_class:
         mock_session = AsyncMock()
         mock_session.__aenter__ = AsyncMock(return_value=mock_session)
         mock_session.__aexit__ = AsyncMock(return_value=None)
         mock_session.closed = False
-        mock_session.post = AsyncMock(return_value=mock_response.__aenter__())
+        mock_session.post = AsyncMock(return_value=mock_response)
         mock_session_class.return_value = mock_session
         
         async with client:

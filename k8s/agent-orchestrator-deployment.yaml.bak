@@ -81,6 +81,14 @@ spec:
         - name: S3_BUCKET_NAME
           value: "research-ops-storage"
 
+        # Redis configuration for caching
+        - name: REDIS_URL
+          value: "redis://redis.research-ops.svc.cluster.local:6379/0"
+
+        # Enable embedding caching
+        - name: ENABLE_EMBEDDING_CACHE
+          value: "true"
+
         resources:
           requests:
             memory: "4Gi"

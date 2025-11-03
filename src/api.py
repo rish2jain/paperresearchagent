@@ -14,6 +14,7 @@ import time
 import logging
 import os
 from datetime import datetime
+import json
 
 from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
 from agents import ResearchOpsAgent, ResearchQuery
@@ -1093,6 +1094,194 @@ async def batch_research(request: BatchResearchRequest):
         failed=failed,
         results=results,
         processing_time_seconds=processing_time
+    )
+
+
+@app.post("/research/stream", tags=["Research"])
+async def research_stream(request: ResearchRequest):
+    """
+    Stream research progress and results in real-time using Server-Sent Events (SSE)
+    
+    This endpoint delivers progressive updates as agents complete their work:
+    - 0-30s: Scout finds papers → papers_found event
+    - 30s-3min: Analyst extracts → paper_analyzed events (batched)
+    - 3-4min: Synthesizer patterns → theme_found, contradiction_found events
+    - 4-5min: Final synthesis → synthesis_complete event
+    
+    **Event Types:**
+    - `agent_status`: Agent starting work
+    - `papers_found`: Scout completed paper search
+    - `paper_analyzed`: Paper analysis complete (batched)
+    - `theme_found`: Theme discovered during synthesis
+    - `contradiction_found`: Contradiction detected
+    - `synthesis_complete`: Final synthesis ready
+    - `error`: Error occurred during processing
+    
+    **SSE Format:**
+    ```
+    event: papers_found
+    data: {"papers_count": 10, "papers": [...]}
+    
+    event: synthesis_complete
+    data: {"themes": [...], "contradictions": [...], "gaps": [...]}
+    ```
+    """
+    start_time = time.time()
+    
+    async def generate_events():
+        """Generate SSE events for research progress"""
+        try:
+            # Validate input
+            validated = ResearchQuery(query=request.query, max_papers=request.max_papers)
+            
+            # Send initial status
+            yield f"event: agent_status\n"
+            yield f"data: {json.dumps({'agent': 'Scout', 'status': 'starting', 'message': 'Searching for papers'})}\n\n"
+            
+            # Initialize NIM clients
+            async with (
+                ReasoningNIMClient() as reasoning,
+                EmbeddingNIMClient() as embedding,
+            ):
+                # Create agent
+                agent = ResearchOpsAgent(reasoning, embedding)
+                
+                # Phase 1: Search (0-30s)
+                yield f"event: agent_status\n"
+                yield f"data: {json.dumps({'agent': 'Scout', 'status': 'searching', 'message': f'Searching {agent.scout.source_config.enable_arxiv + agent.scout.source_config.enable_pubmed} sources'})}\n\n"
+                
+                papers = await agent._execute_search_phase(validated.query, validated.max_papers)
+                
+                # Emit papers_found event
+                papers_data = [
+                    {
+                        "id": p.id,
+                        "title": p.title,
+                        "authors": p.authors,
+                        "abstract": p.abstract[:200] + "..." if len(p.abstract) > 200 else p.abstract,
+                        "url": p.url,
+                        "source": p.id.split('-')[0] if '-' in p.id else "unknown"
+                    }
+                    for p in papers
+                ]
+                
+                yield f"event: papers_found\n"
+                yield f"data: {json.dumps({'papers_count': len(papers), 'papers': papers_data, 'decisions': agent.decision_log.get_decisions()})}\n\n"
+                
+                # Phase 2: Analysis (30s-3min)
+                yield f"event: agent_status\n"
+                yield f"data: {json.dumps({'agent': 'Analyst', 'status': 'analyzing', 'message': f'Analyzing {len(papers)} papers in parallel'})}\n\n"
+                
+                analyses, quality_scores = await agent._execute_analysis_phase(papers)
+                
+                # Emit paper_analyzed events (batched every 3 papers for efficiency)
+                batch_size = 3
+                for i in range(0, len(analyses), batch_size):
+                    batch_analyses = analyses[i:i+batch_size]
+                    batch_papers = papers[i:i+batch_size]
+                    
+                    analyzed_data = [
+                        {
+                            "paper_id": a.paper_id,
+                            "title": next((p.title for p in batch_papers if p.id == a.paper_id), "Unknown"),
+                            "findings_count": len(a.key_findings),
+                            "confidence": a.confidence
+                        }
+                        for a in batch_analyses
+                    ]
+                    
+                    yield f"event: paper_analyzed\n"
+                    yield f"data: {json.dumps({'batch': i//batch_size + 1, 'papers': analyzed_data, 'total_analyzed': min(i+batch_size, len(analyses)), 'total': len(papers)})}\n\n"
+                
+                # Phase 3: Synthesis (3-4min)
+                yield f"event: agent_status\n"
+                yield f"data: {json.dumps({'agent': 'Synthesizer', 'status': 'synthesizing', 'message': 'Identifying themes and patterns'})}\n\n"
+                
+                synthesis = await agent._execute_synthesis_phase(analyses)
+                
+                # Emit theme_found events
+                for i, theme in enumerate(synthesis.common_themes):
+                    yield f"event: theme_found\n"
+                    yield f"data: {json.dumps({'theme_number': i+1, 'theme': theme, 'total_themes': len(synthesis.common_themes)})}\n\n"
+                
+                # Emit contradiction_found events
+                for i, contradiction in enumerate(synthesis.contradictions):
+                    yield f"event: contradiction_found\n"
+                    yield f"data: {json.dumps({'contradiction_number': i+1, 'contradiction': contradiction, 'total_contradictions': len(synthesis.contradictions)})}\n\n"
+                
+                # Phase 4: Refinement (optional)
+                yield f"event: agent_status\n"
+                yield f"data: {json.dumps({'agent': 'Coordinator', 'status': 'evaluating', 'message': 'Assessing synthesis quality'})}\n\n"
+                
+                synthesis, synthesis_complete = await agent._execute_refinement_phase(synthesis, analyses)
+                
+                # Final event: synthesis_complete
+                processing_time = time.time() - start_time
+                
+                final_result = {
+                    "query": validated.query,
+                    "papers_analyzed": len(papers),
+                    "common_themes": synthesis.common_themes,
+                    "contradictions": synthesis.contradictions,
+                    "research_gaps": synthesis.gaps,
+                    "decisions": agent.decision_log.get_decisions(),
+                    "synthesis_complete": synthesis_complete,
+                    "processing_time_seconds": round(processing_time, 2),
+                    "quality_scores": [
+                        {
+                            "paper_id": papers[i].id,
+                            "overall_score": qs.overall_score,
+                            "confidence_level": qs.confidence_level
+                        }
+                        for i, qs in enumerate(quality_scores)
+                    ] if quality_scores else []
+                }
+                
+                yield f"event: synthesis_complete\n"
+                yield f"data: {json.dumps(final_result)}\n\n"
+                
+                logger.info(f"SSE stream complete: {len(papers)} papers, {processing_time:.2f}s")
+                
+        except ValueError as e:
+            # Validation error
+            error_data = {
+                "error": "Invalid input",
+                "message": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+            yield f"event: error\n"
+            yield f"data: {json.dumps(error_data)}\n\n"
+            
+        except asyncio.TimeoutError:
+            # Timeout error
+            error_data = {
+                "error": "Timeout",
+                "message": "Research synthesis exceeded time limit",
+                "timestamp": datetime.now().isoformat()
+            }
+            yield f"event: error\n"
+            yield f"data: {json.dumps(error_data)}\n\n"
+            
+        except Exception as e:
+            # General error
+            logger.error(f"SSE stream error: {e}", exc_info=True)
+            error_data = {
+                "error": "Internal error",
+                "message": str(e),
+                "timestamp": datetime.now().isoformat()
+            }
+            yield f"event: error\n"
+            yield f"data: {json.dumps(error_data)}\n\n"
+    
+    return StreamingResponse(
+        generate_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "Access-Control-Allow-Origin": "*"  # CORS for SSE
+        }
     )
 
 

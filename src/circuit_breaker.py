@@ -175,17 +175,17 @@ class CircuitBreaker:
         """Get current circuit breaker state (thread-safe snapshot)"""
         with self._lock:
             return {
-            "name": self.name,
-            "state": self.state.value,
-            "failure_count": self.failure_count,
-            "success_count": self.success_count,
-            "last_failure_time": (
-                self.last_failure_time.isoformat() if self.last_failure_time else None
-            ),
-            "next_attempt_time": (
-                self.next_attempt_time.isoformat() if self.next_attempt_time else None
-            )
-        }
+                "name": self.name,
+                "state": self.state.value,
+                "failure_count": self.failure_count,
+                "success_count": self.success_count,
+                "last_failure_time": (
+                    self.last_failure_time.isoformat() if self.last_failure_time else None
+                ),
+                "next_attempt_time": (
+                    self.next_attempt_time.isoformat() if self.next_attempt_time else None
+                )
+            }
 
 
 class CircuitBreakerOpenError(Exception):
