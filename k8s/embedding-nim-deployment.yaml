@@ -19,7 +19,7 @@ spec:
     spec:
       # Can run on GPU or CPU, GPU preferred for speed
       nodeSelector:
-        node.kubernetes.io/instance-type: g5.xlarge
+        node.kubernetes.io/instance-type: g5.2xlarge
 
       containers:
       - name: embedding-nim
@@ -27,8 +27,11 @@ spec:
         imagePullPolicy: Always
 
         ports:
-        - containerPort: 8001
+        - containerPort: 8000
           name: http
+          protocol: TCP
+        - containerPort: 8001
+          name: grpc
           protocol: TCP
 
         env:
@@ -41,18 +44,21 @@ spec:
         - name: NIM_CACHE_PATH
           value: "/opt/nim/.cache"
 
-        - name: NIM_SERVER_PORT
+        - name: NIM_HTTP_PORT
           value: "8001"
+
+        - name: NIM_GRPC_PORT
+          value: "8002"
 
         - name: NIM_JSONL_LOGGING
           value: "1"
 
-        # Embedding-specific configs
+        # Embedding-specific configs (optimized for g5.2xlarge)
         - name: MAX_BATCH_SIZE
-          value: "32"
+          value: "64"  # Increased from 32 for better throughput
 
         - name: MAX_CLIENT_BATCH_SIZE
-          value: "128"
+          value: "256"  # Increased from 128 for better throughput
 
         resources:
           requests:
@@ -67,22 +73,29 @@ spec:
         livenessProbe:
           httpGet:
             path: /v1/health/live
-            port: 8001
-          initialDelaySeconds: 60
+            port: 8000
+          initialDelaySeconds: 180
           periodSeconds: 30
           timeoutSeconds: 10
+          failureThreshold: 3
 
         readinessProbe:
           httpGet:
             path: /v1/health/ready
-            port: 8001
-          initialDelaySeconds: 30
+            port: 8000
+          initialDelaySeconds: 120
           periodSeconds: 10
           timeoutSeconds: 5
+          failureThreshold: 3
 
         volumeMounts:
         - name: nim-cache
           mountPath: /opt/nim/.cache
+
+      securityContext:
+        fsGroup: 0
+        runAsUser: 0
+        runAsGroup: 0
 
       volumes:
       - name: nim-cache
@@ -104,7 +117,7 @@ spec:
   type: ClusterIP
   ports:
   - port: 8001
-    targetPort: 8001
+    targetPort: 8000
     protocol: TCP
     name: http
   selector:
@@ -122,4 +135,4 @@ spec:
   resources:
     requests:
       storage: 20Gi
-  storageClassName: gp3
+  storageClassName: gp2

@@ -17,6 +17,21 @@ from tenacity import (
 )
 import time
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Circuit breaker support
+try:
+    from circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerOpenError
+    CIRCUIT_BREAKER_AVAILABLE = True
+except ImportError:
+    try:
+        from .circuit_breaker import CircuitBreaker, CircuitBreakerConfig, CircuitBreakerOpenError
+        CIRCUIT_BREAKER_AVAILABLE = True
+    except ImportError:
+        CIRCUIT_BREAKER_AVAILABLE = False
+        CircuitBreakerOpenError = Exception  # Fallback exception type
+
 # Optional imports for metrics and caching
 try:
     from metrics import get_metrics_collector
@@ -29,9 +44,6 @@ try:
     CACHE_AVAILABLE = True
 except ImportError:
     CACHE_AVAILABLE = False
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 
 class ReasoningNIMClient:
@@ -53,6 +65,17 @@ class ReasoningNIMClient:
         )
         self.timeout = timeout or self.DEFAULT_TIMEOUT
         self.session: Optional[aiohttp.ClientSession] = None
+        
+        # Initialize circuit breaker
+        if CIRCUIT_BREAKER_AVAILABLE:
+            circuit_config = CircuitBreakerConfig(
+                fail_max=int(os.getenv("CIRCUIT_BREAKER_FAIL_MAX", "5")),
+                timeout_duration=int(os.getenv("CIRCUIT_BREAKER_TIMEOUT", "60")),
+                success_threshold=2
+            )
+            self.circuit_breaker = CircuitBreaker("reasoning_nim", circuit_config)
+        else:
+            self.circuit_breaker = None
         
         # Initialize metrics
         if METRICS_AVAILABLE:
@@ -77,6 +100,49 @@ class ReasoningNIMClient:
             # Wait for underlying connections to close
             await asyncio.sleep(0.250)
 
+    async def _complete_impl(
+        self,
+        prompt: str,
+        max_tokens: int = 2048,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
+        stream: bool = False
+    ) -> str:
+        """Internal implementation with retry logic"""
+        if not self.session or self.session.closed:
+            raise RuntimeError("NIM client session not initialized. Use async context manager.")
+        
+        url = f"{self.base_url}/v1/completions"
+
+        payload = {
+            "model": "meta/llama-3.1-nemotron-nano-8b-instruct",
+            "prompt": prompt,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "top_p": top_p,
+            "stream": stream
+        }
+
+        async with self.session.post(url, json=payload) as response:
+            # Validate response status
+            if response.status != 200:
+                error_text = await response.text()
+                raise ValueError(
+                    f"Reasoning NIM returned status {response.status}: {error_text}"
+                )
+            
+            result = await response.json()
+
+            # Validate response structure
+            if "choices" not in result or not result["choices"]:
+                raise ValueError(f"Invalid NIM response structure: {result}")
+
+            # Extract completion text
+            completion = result["choices"][0]["text"]
+
+            logger.info(f"Reasoning completion: {len(completion)} chars (prompt: {len(prompt)} chars)")
+            return completion
+
     @retry(
         stop=stop_after_attempt(3),
         wait=wait_exponential(multiplier=1, min=2, max=10),
@@ -92,7 +158,7 @@ class ReasoningNIMClient:
         stream: bool = False
     ) -> str:
         """
-        Generate completion using reasoning model with automatic retry
+        Generate completion using reasoning model with automatic retry and circuit breaker
 
         Args:
             prompt: Input text prompt
@@ -108,55 +174,40 @@ class ReasoningNIMClient:
             aiohttp.ClientError: Network errors (will retry automatically)
             asyncio.TimeoutError: Timeout errors (will retry automatically)
             ValueError: Invalid response structure (will not retry)
+            CircuitBreakerOpenError: If circuit breaker is open
         """
-        if not self.session or self.session.closed:
-            raise RuntimeError("NIM client session not initialized. Use async context manager.")
-        
-        url = f"{self.base_url}/v1/completions"
-
-        payload = {
-            "model": "meta/llama-3.1-nemotron-nano-8b-instruct",
-            "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            "top_p": top_p,
-            "stream": stream
-        }
-
-        try:
-            async with self.session.post(url, json=payload) as response:
-                # Validate response status
-                if response.status != 200:
-                    error_text = await response.text()
-                    raise ValueError(
-                        f"Reasoning NIM returned status {response.status}: {error_text}"
-                    )
-                
-                result = await response.json()
-
-                # Validate response structure
-                if "choices" not in result or not result["choices"]:
-                    raise ValueError(f"Invalid NIM response structure: {result}")
-
-                # Extract completion text
-                completion = result["choices"][0]["text"]
-
-                logger.info(f"Reasoning completion: {len(completion)} chars (prompt: {len(prompt)} chars)")
-                return completion
-
-        except aiohttp.ClientError as e:
-            logger.error(f"Reasoning NIM network error for {url}: {e}")
-            raise
-        except asyncio.TimeoutError as e:
-            logger.error(f"Reasoning NIM timeout after {self.timeout.total}s: {e}")
-            raise
-        except ValueError as e:
-            # Don't retry validation errors
-            logger.error(f"Reasoning NIM validation error: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Reasoning NIM unexpected error: {e}")
-            raise
+        # Use circuit breaker if available
+        if self.circuit_breaker:
+            try:
+                return await self.circuit_breaker.call(
+                    self._complete_impl,
+                    prompt,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    top_p=top_p,
+                    stream=stream
+                )
+            except CircuitBreakerOpenError:
+                logger.error(f"Circuit breaker OPEN for reasoning NIM - service unavailable")
+                raise
+        else:
+            # Fallback without circuit breaker
+            try:
+                return await self._complete_impl(
+                    prompt, max_tokens, temperature, top_p, stream
+                )
+            except aiohttp.ClientError as e:
+                logger.error(f"Reasoning NIM network error: {e}")
+                raise
+            except asyncio.TimeoutError as e:
+                logger.error(f"Reasoning NIM timeout after {self.timeout.total}s: {e}")
+                raise
+            except ValueError as e:
+                logger.error(f"Reasoning NIM validation error: {e}")
+                raise
+            except Exception as e:
+                logger.error(f"Reasoning NIM unexpected error: {e}")
+                raise
 
     @retry(
         stop=stop_after_attempt(3),

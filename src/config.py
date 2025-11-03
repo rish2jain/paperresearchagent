@@ -84,6 +84,7 @@ class APIConfig:
     log_level: str = "info"
     cors_origins: list = None
     request_timeout: int = 300
+    demo_mode: bool = False  # Enable demo mode with pre-cached results
 
 
 @dataclass
@@ -138,7 +139,8 @@ class Config:
             port=int(os.getenv("API_PORT", "8080")),
             log_level=os.getenv("LOG_LEVEL", "info"),
             cors_origins=cors_origins,
-            request_timeout=int(os.getenv("REQUEST_TIMEOUT", "300"))
+            request_timeout=int(os.getenv("REQUEST_TIMEOUT", "300")),
+            demo_mode=os.getenv("DEMO_MODE", "false").lower() == "true"
         )
         
         paper_source_config = PaperSourceConfig.from_env()

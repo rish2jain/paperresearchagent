@@ -1,0 +1,231 @@
+---
+# Network Policy for Research Ops Agent
+# Restricts network traffic between pods for security isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: research-ops-network-policy
+  namespace: research-ops
+spec:
+  podSelector:
+    matchLabels:
+      # Apply to all pods in research-ops namespace
+      component: agentic-system
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from ingress controller (if deployed)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from web-ui to agent-orchestrator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: web-ui
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Allow ingress from agent-orchestrator to NIMs (for health checks)
+    - from:
+        - podSelector:
+            matchLabels:
+              app: agent-orchestrator
+      ports:
+        - protocol: TCP
+          port: 8000  # Reasoning NIM
+        - protocol: TCP
+          port: 8001  # Embedding NIM
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow agent-orchestrator to communicate with NIMs
+    - to:
+        - podSelector:
+            matchLabels:
+              app: reasoning-nim
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - podSelector:
+            matchLabels:
+              app: embedding-nim
+      ports:
+        - protocol: TCP
+          port: 8001
+    # Allow agent-orchestrator to communicate with vector DB
+    - to:
+        - podSelector:
+            matchLabels:
+              app: vector-db
+      ports:
+        - protocol: TCP
+          port: 6333
+    # Allow agent-orchestrator to make external API calls (paper sources)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443  # HTTPS for external APIs
+        - protocol: TCP
+          port: 80   # HTTP for external APIs
+    # Allow web-ui to communicate with agent-orchestrator
+    - to:
+        - podSelector:
+            matchLabels:
+              app: agent-orchestrator
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# Network Policy for Reasoning NIM
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: reasoning-nim-network-policy
+  namespace: research-ops
+spec:
+  podSelector:
+    matchLabels:
+      app: reasoning-nim
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only allow traffic from agent-orchestrator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: agent-orchestrator
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow NIM to pull images/access NGC
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# Network Policy for Embedding NIM
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: embedding-nim-network-policy
+  namespace: research-ops
+spec:
+  podSelector:
+    matchLabels:
+      app: embedding-nim
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only allow traffic from agent-orchestrator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: agent-orchestrator
+      ports:
+        - protocol: TCP
+          port: 8001
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow NIM to pull images/access NGC
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+
+---
+# Network Policy for Vector DB
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: vector-db-network-policy
+  namespace: research-ops
+spec:
+  podSelector:
+    matchLabels:
+      app: vector-db
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only allow traffic from agent-orchestrator
+    - from:
+        - podSelector:
+            matchLabels:
+              app: agent-orchestrator
+      ports:
+        - protocol: TCP
+          port: 6333
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+
+---
+# Network Policy for Web UI
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-ui-network-policy
+  namespace: research-ops
+spec:
+  podSelector:
+    matchLabels:
+      app: web-ui
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow ingress from ingress controller
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8501
+  egress:
+    # Allow DNS
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    # Allow web-ui to communicate with agent-orchestrator
+    - to:
+        - podSelector:
+            matchLabels:
+              app: agent-orchestrator
+      ports:
+        - protocol: TCP
+          port: 8080
+

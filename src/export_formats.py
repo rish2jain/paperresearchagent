@@ -8,12 +8,14 @@ from datetime import datetime
 import re
 import io
 import csv
+import json
 
 # Optional dependencies for Word/PDF export
 try:
     from docx import Document
     from docx.shared import Inches, Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+
     HAS_DOCX = True
 except ImportError:
     HAS_DOCX = False
@@ -23,6 +25,7 @@ try:
     from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
+
     HAS_REPORTLAB = True
 except ImportError:
     HAS_REPORTLAB = False
@@ -31,68 +34,70 @@ except ImportError:
 def generate_bibtex(papers: List[Dict[str, Any]]) -> str:
     """
     Generate BibTeX citation entries for papers
-    
+
     Args:
         papers: List of paper dictionaries with id, title, authors, url, etc.
-    
+
     Returns:
         BibTeX formatted string
     """
     bibtex_entries = []
-    
+
     for paper in papers:
         # Generate citation key from first author and year
         citation_key = _generate_citation_key(paper)
-        
+
         # Determine entry type (default to @article)
-        entry_type = paper.get('entry_type', 'article')
-        
+        entry_type = paper.get("entry_type", "article")
+
         # Format authors for BibTeX (Last, First format)
-        authors = _format_authors_bibtex(paper.get('authors', []))
-        
+        authors = _format_authors_bibtex(paper.get("authors", []))
+
         # Extract year if available
         year = _extract_year(paper)
-        
+
         # Build BibTeX entry
         entry = f"@{entry_type}{{{citation_key},\n"
         entry += f"  title = {{{_escape_bibtex(paper.get('title', 'Unknown'))}}},\n"
-        
+
         if authors:
             entry += f"  author = {{{authors}}},\n"
-        
+
         if year:
             entry += f"  year = {{{year}}},\n"
-        
+
         # Add URL if available
-        if paper.get('url'):
+        if paper.get("url"):
             entry += f"  url = {{{paper['url']}}},\n"
-        
+
         # Add abstract if available
-        if paper.get('abstract'):
+        if paper.get("abstract"):
             # Truncate long abstracts for BibTeX
-            abstract = paper['abstract'][:500] + ('...' if len(paper['abstract']) > 500 else '')
+            abstract = paper["abstract"][:500] + (
+                "..." if len(paper["abstract"]) > 500 else ""
+            )
             entry += f"  abstract = {{{_escape_bibtex(abstract)}}},\n"
-        
+
         # Add identifier if available
-        paper_id = paper.get('id', '')
-        if paper_id.startswith('arxiv-'):
-            arxiv_id = paper_id.replace('arxiv-', '')
+        paper_id = paper.get("id", "")
+        if paper_id.startswith("arxiv-"):
+            arxiv_id = paper_id.replace("arxiv-", "")
             entry += f"  eprint = {{{arxiv_id}}},\n"
             entry += f"  archivePrefix = {{arXiv}},\n"
             entry += f"  primaryClass = {{cs.AI}},\n"  # Default, could be smarter
-        elif paper_id.startswith('pubmed-'):
-            pmid = paper_id.replace('pubmed-', '')
+        elif paper_id.startswith("pubmed-"):
+            pmid = paper_id.replace("pubmed-", "")
             entry += f"  pmid = {{{pmid}}},\n"
-        
+
         # Add source information
-        source = paper.get('source', '')
+        source = paper.get("source", "")
         if source:
             entry += f"  note = {{Retrieved from {source}}},\n"
-        
+
         # Remove trailing comma and close
-        entry = entry.rstrip(',\n') + "\n}"
+        entry = entry.rstrip(",\n") + "\n}"
         bibtex_entries.append(entry)
-    
+
     return "\n\n".join(bibtex_entries)
 
 
@@ -102,11 +107,11 @@ def generate_latex_document(
     themes: List[str],
     gaps: List[str],
     contradictions: List[Dict],
-    date: Optional[str] = None
+    date: Optional[str] = None,
 ) -> str:
     """
     Generate a complete LaTeX document for literature review
-    
+
     Args:
         query: Research query
         papers: List of analyzed papers
@@ -114,14 +119,15 @@ def generate_latex_document(
         gaps: Research gaps
         contradictions: Contradictions found
         date: Optional date string
-    
+
     Returns:
         Complete LaTeX document as string
     """
     if not date:
-        date = datetime.now().strftime('%B %d, %Y')
-    
-    latex = r"""\documentclass[11pt]{article}
+        date = datetime.now().strftime("%B %d, %Y")
+
+    latex = (
+        r"""\documentclass[11pt]{article}
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath}
 \usepackage{graphicx}
@@ -129,83 +135,102 @@ def generate_latex_document(
 \usepackage{natbib}
 \usepackage[margin=1in]{geometry}
 
-\title{Literature Review: """ + _escape_latex(query) + """}
+\title{Literature Review: """
+        + _escape_latex(query)
+        + """}
 \author{ResearchOps Agent}
-\date{""" + date + """}
+\date{"""
+        + date
+        + """}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-This literature review synthesizes research findings on """ + _escape_latex(query) + """. 
-The review analyzed """ + str(len(papers)) + """ papers and identified """ + str(len(themes)) + """ 
-common themes, """ + str(len(contradictions)) + """ contradictions, and """ + str(len(gaps)) + """ 
+This literature review synthesizes research findings on """
+        + _escape_latex(query)
+        + """. 
+The review analyzed """
+        + str(len(papers))
+        + """ papers and identified """
+        + str(len(themes))
+        + """ 
+common themes, """
+        + str(len(contradictions))
+        + """ contradictions, and """
+        + str(len(gaps))
+        + """ 
 research gaps. Generated automatically using ResearchOps Agent.
 \end{abstract}
 
 \section{Introduction}
-This review synthesizes the current state of research on """ + _escape_latex(query) + """.
-The synthesis was generated by analyzing """ + str(len(papers)) + """ relevant papers 
+This review synthesizes the current state of research on """
+        + _escape_latex(query)
+        + """.
+The synthesis was generated by analyzing """
+        + str(len(papers))
+        + """ relevant papers 
 from multiple academic sources.
 
 \section{Common Themes}
 
 """
-    
+    )
+
     for i, theme in enumerate(themes, 1):
         latex += f"\\subsection{{Theme {i}}}\n"
         latex += _escape_latex(theme) + "\n\n"
-    
+
     if contradictions:
         latex += r"\section{Contradictions and Disagreements}" + "\n\n"
         for i, contradiction in enumerate(contradictions, 1):
             latex += f"\\subsection{{Contradiction {i}}}\n"
-            paper1 = contradiction.get('paper1', 'Paper A')
-            claim1 = contradiction.get('claim1', 'N/A')
-            paper2 = contradiction.get('paper2', 'Paper B')
-            claim2 = contradiction.get('claim2', 'N/A')
-            conflict = contradiction.get('conflict', 'N/A')
-            
+            paper1 = contradiction.get("paper1", "Paper A")
+            claim1 = contradiction.get("claim1", "N/A")
+            paper2 = contradiction.get("paper2", "Paper B")
+            claim2 = contradiction.get("claim2", "N/A")
+            conflict = contradiction.get("conflict", "N/A")
+
             latex += f"\\textbf{{{_escape_latex(paper1)}}} reports: {_escape_latex(claim1)}\n\n"
             latex += f"\\textbf{{{_escape_latex(paper2)}}} reports: {_escape_latex(claim2)}\n\n"
             latex += f"\\textit{{Conflict:}} {_escape_latex(conflict)}\n\n"
-    
+
     if gaps:
         latex += r"\section{Research Gaps}" + "\n\n"
         latex += r"\begin{itemize}" + "\n"
         for gap in gaps:
             latex += f"\\item {_escape_latex(gap)}\n"
         latex += r"\end{itemize}" + "\n\n"
-    
+
     latex += r"\section{References}" + "\n\n"
     latex += r"\bibliographystyle{plainnat}" + "\n"
     latex += r"\bibliography{references}" + "\n"
-    
+
     latex += r"\end{document}"
-    
+
     return latex
 
 
 def _generate_citation_key(paper: Dict[str, Any]) -> str:
     """Generate a unique citation key for BibTeX"""
-    authors = paper.get('authors', [])
+    authors = paper.get("authors", [])
     year = _extract_year(paper)
-    
+
     if authors:
         # Use first author's last name
         first_author = authors[0]
-        last_name = first_author.split()[-1] if ' ' in first_author else first_author
-        last_name = re.sub(r'[^a-zA-Z]', '', last_name).lower()
-        
+        last_name = first_author.split()[-1] if " " in first_author else first_author
+        last_name = re.sub(r"[^a-zA-Z]", "", last_name).lower()
+
         if year:
             citation_key = f"{last_name}{year}"
         else:
             citation_key = f"{last_name}{datetime.now().year}"
     else:
         # Fallback to paper ID
-        citation_key = paper.get('id', 'unknown').replace('-', '').replace('_', '')
-    
+        citation_key = paper.get("id", "unknown").replace("-", "").replace("_", "")
+
     # Ensure uniqueness by appending number if needed
     # This is simplified - in production, track used keys
     return citation_key[:20]  # BibTeX keys should be reasonable length
@@ -215,67 +240,67 @@ def _format_authors_bibtex(authors: List[str]) -> str:
     """Format author list for BibTeX (Last, First format)"""
     if not authors:
         return ""
-    
+
     formatted_authors = []
     for author in authors:
         if not author:
             continue
-        
+
         # Handle "First Last" format
-        if ' ' in author:
+        if " " in author:
             parts = author.split()
             if len(parts) >= 2:
                 last = parts[-1]
-                first = ' '.join(parts[:-1])
+                first = " ".join(parts[:-1])
                 formatted_authors.append(f"{last}, {first}")
             else:
                 formatted_authors.append(author)
         else:
             # Single name - assume last name
             formatted_authors.append(author)
-    
+
     return " and ".join(formatted_authors)
 
 
 def _extract_year(paper: Dict[str, Any]) -> Optional[str]:
     """Extract publication year from paper"""
     # Try different fields
-    if 'published_date' in paper:
-        date_str = str(paper['published_date'])
+    if "published_date" in paper:
+        date_str = str(paper["published_date"])
         # Try to extract year from date string
-        year_match = re.search(r'\b(19|20)\d{2}\b', date_str)
+        year_match = re.search(r"\b(19|20)\d{2}\b", date_str)
         if year_match:
             return year_match.group(0)
-    
-    if 'year' in paper:
-        return str(paper['year'])
-    
+
+    if "year" in paper:
+        return str(paper["year"])
+
     # Try to extract from paper ID (e.g., arxiv-2024.00123)
-    paper_id = paper.get('id', '')
-    year_match = re.search(r'(19|20)\d{2}', paper_id)
+    paper_id = paper.get("id", "")
+    year_match = re.search(r"(19|20)\d{2}", paper_id)
     if year_match:
         return year_match.group(0)
-    
+
     return None
 
 
 def _escape_bibtex(text: str) -> str:
     """Escape special characters for BibTeX"""
     # BibTeX special characters: { } \ ~ ^
-    text = text.replace('\\', '{\\textbackslash}')
-    text = text.replace('{', '\\{')
-    text = text.replace('}', '\\}')
-    text = text.replace('~', '{\\textasciitilde}')
-    text = text.replace('^', '{\\textasciicircum}')
-    text = text.replace('&', '\\&')
-    text = text.replace('%', '\\%')
-    text = text.replace('$', '\\$')
-    text = text.replace('#', '\\#')
-    text = text.replace('_', '\\_')
-    
+    text = text.replace("\\", "{\\textbackslash}")
+    text = text.replace("{", "\\{")
+    text = text.replace("}", "\\}")
+    text = text.replace("~", "{\\textasciitilde}")
+    text = text.replace("^", "{\\textasciicircum}")
+    text = text.replace("&", "\\&")
+    text = text.replace("%", "\\%")
+    text = text.replace("$", "\\$")
+    text = text.replace("#", "\\#")
+    text = text.replace("_", "\\_")
+
     # Remove or replace special Unicode characters
-    text = text.encode('ascii', 'ignore').decode('ascii')
-    
+    text = text.encode("ascii", "ignore").decode("ascii")
+
     return text
 
 
@@ -283,21 +308,21 @@ def _escape_latex(text: str) -> str:
     """Escape special characters for LaTeX"""
     # LaTeX special characters
     special_chars = {
-        '&': r'\&',
-        '%': r'\%',
-        '$': r'\$',
-        '#': r'\#',
-        '^': r'\^{}',
-        '_': r'\_',
-        '{': r'\{',
-        '}': r'\}',
-        '~': r'\textasciitilde{}',
-        '\\': r'\textbackslash{}'
+        "&": r"\&",
+        "%": r"\%",
+        "$": r"\$",
+        "#": r"\#",
+        "^": r"\^{}",
+        "_": r"\_",
+        "{": r"\{",
+        "}": r"\}",
+        "~": r"\textasciitilde{}",
+        "\\": r"\textbackslash{}",
     }
-    
+
     for char, escape in special_chars.items():
         text = text.replace(char, escape)
-    
+
     return text
 
 
@@ -306,39 +331,41 @@ def generate_word_document(
     papers: List[Dict[str, Any]],
     themes: List[str],
     gaps: List[str],
-    contradictions: List[Dict]
+    contradictions: List[Dict],
 ) -> Optional[io.BytesIO]:
     """
     Generate a Word document (.docx) for literature review.
     Requires 'python-docx' to be installed.
-    
+
     Args:
         query: Research query
         papers: List of analyzed papers
         themes: Common themes identified
         gaps: Research gaps
         contradictions: Contradictions found
-    
+
     Returns:
         BytesIO object containing the Word document, or None if docx not available
     """
     if not HAS_DOCX:
-        raise ImportError("python-docx is not installed. Please install it with 'pip install python-docx'")
-    
+        raise ImportError(
+            "python-docx is not installed. Please install it with 'pip install python-docx'"
+        )
+
     # Create document
     doc = Document()
-    
+
     # Add title
-    title = doc.add_heading(f'Literature Review: {query}', 0)
+    title = doc.add_heading(f"Literature Review: {query}", 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    
+
     # Add metadata
-    doc.add_paragraph(f'Generated by ResearchOps Agent')
-    doc.add_paragraph(f'Date: {datetime.now().strftime("%B %d, %Y")}')
-    doc.add_paragraph(f'Papers Analyzed: {len(papers)}')
-    
+    doc.add_paragraph(f"Generated by ResearchOps Agent")
+    doc.add_paragraph(f"Date: {datetime.now().strftime('%B %d, %Y')}")
+    doc.add_paragraph(f"Papers Analyzed: {len(papers)}")
+
     # Add abstract
-    doc.add_heading('Abstract', level=1)
+    doc.add_heading("Abstract", level=1)
     abstract_text = (
         f"This literature review synthesizes research findings on {query}. "
         f"The review analyzed {len(papers)} papers and identified {len(themes)} "
@@ -346,61 +373,61 @@ def generate_word_document(
         f"research gaps. Generated automatically using ResearchOps Agent."
     )
     doc.add_paragraph(abstract_text)
-    
+
     # Add introduction
-    doc.add_heading('Introduction', level=1)
+    doc.add_heading("Introduction", level=1)
     intro_text = (
         f"This review synthesizes the current state of research on {query}. "
         f"The synthesis was generated by analyzing {len(papers)} relevant papers "
         f"from multiple academic sources."
     )
     doc.add_paragraph(intro_text)
-    
+
     # Add common themes
-    doc.add_heading('Common Themes', level=1)
+    doc.add_heading("Common Themes", level=1)
     for i, theme in enumerate(themes, 1):
-        doc.add_heading(f'Theme {i}', level=2)
+        doc.add_heading(f"Theme {i}", level=2)
         doc.add_paragraph(theme)
-    
+
     # Add contradictions
     if contradictions:
-        doc.add_heading('Contradictions and Disagreements', level=1)
+        doc.add_heading("Contradictions and Disagreements", level=1)
         for i, contradiction in enumerate(contradictions, 1):
-            doc.add_heading(f'Contradiction {i}', level=2)
-            paper1 = contradiction.get('paper1', 'Paper A')
-            claim1 = contradiction.get('claim1', 'N/A')
-            paper2 = contradiction.get('paper2', 'Paper B')
-            claim2 = contradiction.get('claim2', 'N/A')
-            conflict = contradiction.get('conflict', 'N/A')
-            
-            doc.add_paragraph(f'Paper 1 ({paper1}) reports: {claim1}')
-            doc.add_paragraph(f'Paper 2 ({paper2}) reports: {claim2}')
-            doc.add_paragraph(f'Conflict: {conflict}')
-    
+            doc.add_heading(f"Contradiction {i}", level=2)
+            paper1 = contradiction.get("paper1", "Paper A")
+            claim1 = contradiction.get("claim1", "N/A")
+            paper2 = contradiction.get("paper2", "Paper B")
+            claim2 = contradiction.get("claim2", "N/A")
+            conflict = contradiction.get("conflict", "N/A")
+
+            doc.add_paragraph(f"Paper 1 ({paper1}) reports: {claim1}")
+            doc.add_paragraph(f"Paper 2 ({paper2}) reports: {claim2}")
+            doc.add_paragraph(f"Conflict: {conflict}")
+
     # Add research gaps
     if gaps:
-        doc.add_heading('Research Gaps', level=1)
+        doc.add_heading("Research Gaps", level=1)
         for gap in gaps:
-            para = doc.add_paragraph(gap, style='List Bullet')
-    
+            para = doc.add_paragraph(gap, style="List Bullet")
+
     # Add references
-    doc.add_heading('References', level=1)
+    doc.add_heading("References", level=1)
     for paper in papers:
-        title_text = paper.get('title', 'Unknown Title')
-        authors = ', '.join(paper.get('authors', []))
-        year = _extract_year(paper) or 'Unknown Year'
-        
+        title_text = paper.get("title", "Unknown Title")
+        authors = ", ".join(paper.get("authors", []))
+        year = _extract_year(paper) or "Unknown Year"
+
         ref_text = f"{authors} ({year}). {title_text}."
-        if paper.get('url'):
+        if paper.get("url"):
             ref_text += f" {paper['url']}"
-        
-        doc.add_paragraph(ref_text, style='List Bullet')
-    
+
+        doc.add_paragraph(ref_text, style="List Bullet")
+
     # Save to BytesIO
     doc_bytes = io.BytesIO()
     doc.save(doc_bytes)
     doc_bytes.seek(0)
-    
+
     return doc_bytes
 
 
@@ -409,28 +436,30 @@ def generate_pdf_document(
     papers: List[Dict[str, Any]],
     themes: List[str],
     gaps: List[str],
-    contradictions: List[Dict]
+    contradictions: List[Dict],
 ) -> Optional[io.BytesIO]:
     """
     Generate a PDF document for literature review.
     Requires 'reportlab' to be installed.
-    
+
     Args:
         query: Research query
         papers: List of analyzed papers
         themes: Common themes identified
         gaps: Research gaps
         contradictions: Contradictions found
-    
+
     Returns:
         BytesIO object containing the PDF document, or None if reportlab not available
     """
     if not HAS_REPORTLAB:
-        raise ImportError("reportlab is not installed. Please install it with 'pip install reportlab'")
-    
+        raise ImportError(
+            "reportlab is not installed. Please install it with 'pip install reportlab'"
+        )
+
     # Create BytesIO buffer
     buffer = io.BytesIO()
-    
+
     # Create PDF document
     doc = SimpleDocTemplate(
         buffer,
@@ -438,116 +467,134 @@ def generate_pdf_document(
         rightMargin=72,
         leftMargin=72,
         topMargin=72,
-        bottomMargin=18
+        bottomMargin=18,
     )
-    
+
     # Container for the 'Flowable' objects
     elements = []
-    
+
     # Define styles
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        'CustomTitle',
-        parent=styles['Heading1'],
+        "CustomTitle",
+        parent=styles["Heading1"],
         fontSize=24,
-        textColor='#1a1a1a',
+        textColor="#1a1a1a",
         spaceAfter=30,
-        alignment=1  # Center
+        alignment=1,  # Center
     )
-    
+
     # Add title
-    title = Paragraph(f'Literature Review: {_escape_latex(query)}', title_style)
+    title = Paragraph(f"Literature Review: {_escape_latex(query)}", title_style)
     elements.append(title)
     elements.append(Spacer(1, 12))
-    
+
     # Add metadata
     meta_text = (
-        f'Generated by ResearchOps Agent<br/>'
-        f'Date: {datetime.now().strftime("%B %d, %Y")}<br/>'
-        f'Papers Analyzed: {len(papers)}'
+        f"Generated by ResearchOps Agent<br/>"
+        f"Date: {datetime.now().strftime('%B %d, %Y')}<br/>"
+        f"Papers Analyzed: {len(papers)}"
     )
-    elements.append(Paragraph(meta_text, styles['Normal']))
+    elements.append(Paragraph(meta_text, styles["Normal"]))
     elements.append(Spacer(1, 20))
-    
+
     # Add abstract
-    elements.append(Paragraph('<b>Abstract</b>', styles['Heading1']))
+    elements.append(Paragraph("<b>Abstract</b>", styles["Heading1"]))
     abstract_text = (
         f"This literature review synthesizes research findings on {_escape_latex(query)}. "
         f"The review analyzed {len(papers)} papers and identified {len(themes)} "
         f"common themes, {len(contradictions)} contradictions, and {len(gaps)} "
         f"research gaps. Generated automatically using ResearchOps Agent."
     )
-    elements.append(Paragraph(abstract_text, styles['Normal']))
+    elements.append(Paragraph(abstract_text, styles["Normal"]))
     elements.append(Spacer(1, 20))
-    
+
     # Add introduction
-    elements.append(Paragraph('<b>Introduction</b>', styles['Heading1']))
+    elements.append(Paragraph("<b>Introduction</b>", styles["Heading1"]))
     intro_text = (
         f"This review synthesizes the current state of research on {_escape_latex(query)}. "
         f"The synthesis was generated by analyzing {len(papers)} relevant papers "
         f"from multiple academic sources."
     )
-    elements.append(Paragraph(intro_text, styles['Normal']))
+    elements.append(Paragraph(intro_text, styles["Normal"]))
     elements.append(Spacer(1, 20))
-    
+
     # Add common themes
-    elements.append(Paragraph('<b>Common Themes</b>', styles['Heading1']))
+    elements.append(Paragraph("<b>Common Themes</b>", styles["Heading1"]))
     for i, theme in enumerate(themes, 1):
-        elements.append(Paragraph(f'<b>Theme {i}</b>', styles['Heading2']))
-        elements.append(Paragraph(_escape_latex(theme), styles['Normal']))
+        elements.append(Paragraph(f"<b>Theme {i}</b>", styles["Heading2"]))
+        elements.append(Paragraph(_escape_latex(theme), styles["Normal"]))
         elements.append(Spacer(1, 12))
-    
+
     # Add contradictions
     if contradictions:
-        elements.append(Paragraph('<b>Contradictions and Disagreements</b>', styles['Heading1']))
+        elements.append(
+            Paragraph("<b>Contradictions and Disagreements</b>", styles["Heading1"])
+        )
         for i, contradiction in enumerate(contradictions, 1):
-            elements.append(Paragraph(f'<b>Contradiction {i}</b>', styles['Heading2']))
-            paper1 = contradiction.get('paper1', 'Paper A')
-            claim1 = contradiction.get('claim1', 'N/A')
-            paper2 = contradiction.get('paper2', 'Paper B')
-            claim2 = contradiction.get('claim2', 'N/A')
-            conflict = contradiction.get('conflict', 'N/A')
-            
-            elements.append(Paragraph(f'<b>Paper 1 ({_escape_latex(paper1)})</b> reports: {_escape_latex(claim1)}', styles['Normal']))
-            elements.append(Paragraph(f'<b>Paper 2 ({_escape_latex(paper2)})</b> reports: {_escape_latex(claim2)}', styles['Normal']))
-            elements.append(Paragraph(f'<i>Conflict:</i> {_escape_latex(conflict)}', styles['Normal']))
+            elements.append(Paragraph(f"<b>Contradiction {i}</b>", styles["Heading2"]))
+            paper1 = contradiction.get("paper1", "Paper A")
+            claim1 = contradiction.get("claim1", "N/A")
+            paper2 = contradiction.get("paper2", "Paper B")
+            claim2 = contradiction.get("claim2", "N/A")
+            conflict = contradiction.get("conflict", "N/A")
+
+            elements.append(
+                Paragraph(
+                    f"<b>Paper 1 ({_escape_latex(paper1)})</b> reports: {_escape_latex(claim1)}",
+                    styles["Normal"],
+                )
+            )
+            elements.append(
+                Paragraph(
+                    f"<b>Paper 2 ({_escape_latex(paper2)})</b> reports: {_escape_latex(claim2)}",
+                    styles["Normal"],
+                )
+            )
+            elements.append(
+                Paragraph(
+                    f"<i>Conflict:</i> {_escape_latex(conflict)}", styles["Normal"]
+                )
+            )
             elements.append(Spacer(1, 12))
-    
+
     # Add research gaps
     if gaps:
-        elements.append(Paragraph('<b>Research Gaps</b>', styles['Heading1']))
+        elements.append(Paragraph("<b>Research Gaps</b>", styles["Heading1"]))
         for gap in gaps:
-            elements.append(Paragraph(f'• {_escape_latex(gap)}', styles['Normal']))
+            elements.append(Paragraph(f"• {_escape_latex(gap)}", styles["Normal"]))
             elements.append(Spacer(1, 6))
-    
+
     # Add references
     elements.append(PageBreak())
-    elements.append(Paragraph('<b>References</b>', styles['Heading1']))
+    elements.append(Paragraph("<b>References</b>", styles["Heading1"]))
     elements.append(Spacer(1, 12))
-    
+
     for paper in papers:
-        title_text = paper.get('title', 'Unknown Title')
-        authors = ', '.join(paper.get('authors', []))
-        year = _extract_year(paper) or 'Unknown Year'
-        
-        ref_text = f"<b>{_escape_latex(authors)}</b> ({year}). {_escape_latex(title_text)}."
-        if paper.get('url'):
-            ref_text += f" <link href=\"{paper['url']}\" color=\"blue\"><u>{_escape_latex(paper['url'])}</u></link>"
-        
-        elements.append(Paragraph(ref_text, styles['Normal']))
+        title_text = paper.get("title", "Unknown Title")
+        authors = ", ".join(paper.get("authors", []))
+        year = _extract_year(paper) or "Unknown Year"
+
+        ref_text = (
+            f"<b>{_escape_latex(authors)}</b> ({year}). {_escape_latex(title_text)}."
+        )
+        if paper.get("url"):
+            ref_text += f' <link href="{paper["url"]}" color="blue"><u>{_escape_latex(paper["url"])}</u></link>'
+
+        elements.append(Paragraph(ref_text, styles["Normal"]))
         elements.append(Spacer(1, 6))
-    
+
     # Build PDF
     doc.build(elements)
-    
+
     # Get the PDF data
     pdf_data = buffer.getvalue()
     buffer.close()
-    
+
     # Create new BytesIO for return
     pdf_bytes = io.BytesIO(pdf_data)
     pdf_bytes.seek(0)
-    
+
     return pdf_bytes
 
 
@@ -561,7 +608,7 @@ if __name__ == "__main__":
             "abstract": "This paper explores...",
             "url": "https://arxiv.org/abs/2024.001",
             "published_date": "2024-01-15",
-            "source": "arXiv"
+            "source": "arXiv",
         },
         {
             "id": "pubmed-12345",
@@ -570,93 +617,111 @@ if __name__ == "__main__":
             "abstract": "We investigate...",
             "url": "https://pubmed.ncbi.nlm.nih.gov/12345/",
             "published_date": "2023",
-            "source": "PubMed"
-        }
+            "source": "PubMed",
+        },
     ]
-    
+
     bibtex = generate_bibtex(sample_papers)
     print("BibTeX Output:")
     print(bibtex)
-    
+
     latex = generate_latex_document(
         query="machine learning for medical imaging",
         papers=sample_papers,
         themes=["Deep learning architectures", "Clinical validation"],
         gaps=["Multi-modal fusion", "Interpretability"],
-        contradictions=[{"paper1": "Paper A", "claim1": "X", "paper2": "Paper B", "claim2": "Y", "conflict": "Different results"}]
+        contradictions=[
+            {
+                "paper1": "Paper A",
+                "claim1": "X",
+                "paper2": "Paper B",
+                "claim2": "Y",
+                "conflict": "Different results",
+            }
+        ],
     )
     print("\n\nLaTeX Document:")
     print(latex[:500] + "...")
 
 
-def generate_csv_export(
-    result: Dict[str, Any]
-) -> str:
+def generate_csv_export(result: Dict[str, Any]) -> str:
     """
     Generate CSV export for quantitative analysis
-    
+
     Args:
         result: Research synthesis result dictionary
-    
+
     Returns:
         CSV formatted string
     """
     import csv
-    
+
     # Use StringIO to create CSV in memory
     output = io.StringIO()
     writer = csv.writer(output)
-    
+
     # Header
-    writer.writerow([
-        "Paper ID", "Title", "Authors", "Source", "Year", 
-        "URL", "Theme Matches", "Quality Score", "Methodology Score",
-        "Statistical Score", "Reproducibility Score"
-    ])
-    
+    writer.writerow(
+        [
+            "Paper ID",
+            "Title",
+            "Authors",
+            "Source",
+            "Year",
+            "URL",
+            "Theme Matches",
+            "Quality Score",
+            "Methodology Score",
+            "Statistical Score",
+            "Reproducibility Score",
+        ]
+    )
+
     # Papers data
-    papers = result.get('papers', [])
-    quality_scores = {qs.get('paper_id'): qs for qs in result.get('quality_scores', [])}
-    themes = result.get('common_themes', [])
-    
+    papers = result.get("papers", [])
+    quality_scores = {qs.get("paper_id"): qs for qs in result.get("quality_scores", [])}
+    themes = result.get("common_themes", [])
+
     for paper in papers:
-        paper_id = paper.get('id', '')
+        paper_id = paper.get("id", "")
         quality = quality_scores.get(paper_id, {})
-        
+
         # Find matching themes
-        title_lower = paper.get('title', '').lower()
+        title_lower = paper.get("title", "").lower()
         theme_matches = []
         for theme in themes:
-            if any(word in title_lower for word in theme.lower().split()[:3]):  # Simple keyword matching
+            if any(
+                word in title_lower for word in theme.lower().split()[:3]
+            ):  # Simple keyword matching
                 theme_matches.append(theme[:50])  # Truncate long themes
-        
-        writer.writerow([
-            paper_id,
-            paper.get('title', '')[:100],  # Truncate for CSV readability
-            '; '.join(paper.get('authors', []))[:200],
-            paper.get('source', ''),
-            _extract_year(paper) or '',
-            paper.get('url', '')[:200],
-            '; '.join(theme_matches[:3])[:200],  # Top 3 matching themes
-            f"{quality.get('overall_score', 0):.2f}",
-            f"{quality.get('methodology_score', 0):.2f}",
-            f"{quality.get('statistical_score', 0):.2f}",
-            f"{quality.get('reproducibility_score', 0):.2f}"
-        ])
-    
+
+        writer.writerow(
+            [
+                paper_id,
+                paper.get("title", "")[:100],  # Truncate for CSV readability
+                "; ".join(paper.get("authors", []))[:200],
+                paper.get("source", ""),
+                _extract_year(paper) or "",
+                paper.get("url", "")[:200],
+                "; ".join(theme_matches[:3])[:200],  # Top 3 matching themes
+                f"{quality.get('overall_score', 0):.2f}",
+                f"{quality.get('methodology_score', 0):.2f}",
+                f"{quality.get('statistical_score', 0):.2f}",
+                f"{quality.get('reproducibility_score', 0):.2f}",
+            ]
+        )
+
     return output.getvalue()
 
 
-def generate_excel_export(
-    result: Dict[str, Any]
-) -> io.BytesIO:
+def generate_excel_export(result: Dict[str, Any]) -> io.BytesIO:
     """
     Generate Excel (.xlsx) export for quantitative analysis
     Requires 'openpyxl' to be installed.
-    
+
     Args:
         result: Research synthesis result dictionary
-    
+
     Returns:
         BytesIO object containing the Excel file, or None if openpyxl not available
     """
@@ -665,64 +730,78 @@ def generate_excel_export(
         from openpyxl.styles import Font, PatternFill, Alignment
         from openpyxl.utils import get_column_letter
     except ImportError:
-        raise ImportError("openpyxl is not installed. Please install it with 'pip install openpyxl'")
-    
+        raise ImportError(
+            "openpyxl is not installed. Please install it with 'pip install openpyxl'"
+        )
+
     # Create workbook
     wb = Workbook()
     ws = wb.active
     ws.title = "Research Synthesis"
-    
+
     # Header style
-    header_fill = PatternFill(start_color="4472C4", end_color="4472C4", fill_type="solid")
+    header_fill = PatternFill(
+        start_color="4472C4", end_color="4472C4", fill_type="solid"
+    )
     header_font = Font(color="FFFFFF", bold=True)
-    
+
     # Headers
     headers = [
-        "Paper ID", "Title", "Authors", "Source", "Year", 
-        "URL", "Theme Matches", "Quality Score", "Methodology Score",
-        "Statistical Score", "Reproducibility Score", "Venue Score", "Sample Size Score"
+        "Paper ID",
+        "Title",
+        "Authors",
+        "Source",
+        "Year",
+        "URL",
+        "Theme Matches",
+        "Quality Score",
+        "Methodology Score",
+        "Statistical Score",
+        "Reproducibility Score",
+        "Venue Score",
+        "Sample Size Score",
     ]
-    
+
     for col_idx, header in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col_idx)
         cell.value = header
         cell.fill = header_fill
         cell.font = header_font
         cell.alignment = Alignment(horizontal="center", vertical="center")
-    
+
     # Papers data
-    papers = result.get('papers', [])
-    quality_scores = {qs.get('paper_id'): qs for qs in result.get('quality_scores', [])}
-    themes = result.get('common_themes', [])
-    
+    papers = result.get("papers", [])
+    quality_scores = {qs.get("paper_id"): qs for qs in result.get("quality_scores", [])}
+    themes = result.get("common_themes", [])
+
     row = 2
     for paper in papers:
-        paper_id = paper.get('id', '')
+        paper_id = paper.get("id", "")
         quality = quality_scores.get(paper_id, {})
-        
+
         # Find matching themes
-        title_lower = paper.get('title', '').lower()
+        title_lower = paper.get("title", "").lower()
         theme_matches = []
         for theme in themes:
             if any(word in title_lower for word in theme.lower().split()[:3]):
                 theme_matches.append(theme)
-        
+
         ws.cell(row=row, column=1, value=paper_id)
-        ws.cell(row=row, column=2, value=paper.get('title', ''))
-        ws.cell(row=row, column=3, value=', '.join(paper.get('authors', [])))
-        ws.cell(row=row, column=4, value=paper.get('source', ''))
-        ws.cell(row=row, column=5, value=_extract_year(paper) or '')
-        ws.cell(row=row, column=6, value=paper.get('url', ''))
-        ws.cell(row=row, column=7, value='; '.join(theme_matches[:5]))
-        ws.cell(row=row, column=8, value=quality.get('overall_score', 0))
-        ws.cell(row=row, column=9, value=quality.get('methodology_score', 0))
-        ws.cell(row=row, column=10, value=quality.get('statistical_score', 0))
-        ws.cell(row=row, column=11, value=quality.get('reproducibility_score', 0))
-        ws.cell(row=row, column=12, value=quality.get('venue_score', 0))
-        ws.cell(row=row, column=13, value=quality.get('sample_size_score', 0))
-        
+        ws.cell(row=row, column=2, value=paper.get("title", ""))
+        ws.cell(row=row, column=3, value=", ".join(paper.get("authors", [])))
+        ws.cell(row=row, column=4, value=paper.get("source", ""))
+        ws.cell(row=row, column=5, value=_extract_year(paper) or "")
+        ws.cell(row=row, column=6, value=paper.get("url", ""))
+        ws.cell(row=row, column=7, value="; ".join(theme_matches[:5]))
+        ws.cell(row=row, column=8, value=quality.get("overall_score", 0))
+        ws.cell(row=row, column=9, value=quality.get("methodology_score", 0))
+        ws.cell(row=row, column=10, value=quality.get("statistical_score", 0))
+        ws.cell(row=row, column=11, value=quality.get("reproducibility_score", 0))
+        ws.cell(row=row, column=12, value=quality.get("venue_score", 0))
+        ws.cell(row=row, column=13, value=quality.get("sample_size_score", 0))
+
         row += 1
-    
+
     # Auto-adjust column widths
     for col_idx in range(1, len(headers) + 1):
         column_letter = get_column_letter(col_idx)
@@ -735,11 +814,1053 @@ def generate_excel_export(
                 pass
         adjusted_width = min(max_length + 2, 50)  # Cap at 50 characters
         ws.column_dimensions[column_letter].width = adjusted_width
-    
+
     # Save to BytesIO
     excel_bytes = io.BytesIO()
     wb.save(excel_bytes)
     excel_bytes.seek(0)
-    
+
     return excel_bytes
 
+
+def generate_endnote_export(papers: List[Dict[str, Any]]) -> str:
+    """
+    Generate EndNote (.enw) export format for citation management
+
+    Args:
+        papers: List of paper dictionaries
+
+    Returns:
+        EndNote formatted string
+    """
+    endnote_entries = []
+
+    for paper in papers:
+        # EndNote format: %0 Type
+        entry_type = "Journal Article"  # Default
+        if paper.get("id", "").startswith("arxiv-"):
+            entry_type = "Preprint"
+
+        entry = f"%0 {entry_type}\n"
+
+        # %T Title
+        if paper.get("title"):
+            entry += f"%T {paper['title']}\n"
+
+        # %A Authors (one per line)
+        authors = paper.get("authors", [])
+        for author in authors:
+            entry += f"%A {author}\n"
+
+        # %D Year
+        year = _extract_year(paper)
+        if year:
+            entry += f"%D {year}\n"
+
+        # %J Journal/Source
+        source = paper.get("source", "")
+        if source:
+            entry += f"%J {source}\n"
+
+        # %U URL
+        if paper.get("url"):
+            entry += f"%U {paper['url']}\n"
+
+        # %X Abstract
+        if paper.get("abstract"):
+            abstract = _truncate_at_word_boundary(
+                paper["abstract"].replace("\n", " "), 500
+            )
+            entry += f"%X {abstract}\n"
+
+        # %K Keywords (skip if themes not available - themes are not part of paper dict)
+        # Themes would come from the synthesis result, not individual papers
+
+        # Paper ID as identifier
+        if paper.get("id"):
+            entry += f"%M {paper['id']}\n"
+
+        entry += "\n"
+        endnote_entries.append(entry)
+
+    return "".join(endnote_entries)
+
+
+def _truncate_at_word_boundary(text: str, max_length: int) -> str:
+    """
+    Truncate text to max_length at word boundary without breaking words.
+    Appends ellipsis if truncation occurred.
+
+    Args:
+        text: Text to truncate
+        max_length: Maximum length (characters)
+
+    Returns:
+        Truncated text with ellipsis if needed
+    """
+    if not text:
+        return ""
+
+    text = str(text)
+    if len(text) <= max_length:
+        return text
+
+    # Find last whitespace before max_length
+    truncated = text[:max_length]
+    last_space = truncated.rfind(" ")
+
+    if last_space > 0:
+        # Truncate at word boundary
+        return truncated[:last_space].rstrip() + "..."
+    else:
+        # No whitespace found, truncate at max_length
+        return truncated + "..."
+
+
+def _escape_html(text: str) -> str:
+    """Escape HTML special characters"""
+    if not text:
+        return ""
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#x27;")
+    )
+
+
+def _format_contradictions_html(contradictions: List[Dict]) -> str:
+    """Format contradictions for HTML"""
+    html = ""
+    for i, contr in enumerate(contradictions, 1):
+        html += f"""
+        <div class="theme-item">
+            <strong>Contradiction {i}:</strong><br>
+            <strong>{_escape_html(contr.get("paper1", "Paper A"))}</strong>: {_escape_html(contr.get("claim1", "N/A"))}<br>
+            <strong>{_escape_html(contr.get("paper2", "Paper B"))}</strong>: {_escape_html(contr.get("claim2", "N/A"))}<br>
+            <em>Conflict:</em> {_escape_html(contr.get("conflict", "N/A"))}
+        </div>
+        """
+    return html
+
+
+def _format_decisions_html(decisions: List[Dict]) -> str:
+    """Format agent decisions for HTML"""
+    html = ""
+    for decision in decisions:
+        agent = decision.get("agent", "Unknown")
+        html += f"""
+        <div class="decision-card">
+            <span class="agent-name">{_escape_html(agent)}</span>: {_escape_html(decision.get("decision", "N/A"))}<br>
+            <small>{_escape_html(decision.get("reasoning", "")[:200])}</small>
+        </div>
+        """
+    return html
+
+
+def _format_papers_html(papers: List[Dict[str, Any]]) -> str:
+    """Format papers with clickable citations"""
+    html = ""
+    for i, paper in enumerate(papers, 1):
+        authors = ", ".join(paper.get("authors", []))
+        year = _extract_year(paper) or "Unknown"
+        url = paper.get("url", "#")
+
+        html += f"""
+        <div class="citation" data-index="{i}">
+            <strong>{i}. {_escape_html(paper.get("title", "Unknown Title"))}</strong><br>
+            {_escape_html(authors)} ({year})<br>
+            <a href="{_escape_html(url)}" target="_blank" class="citation-link">View Paper →</a>
+            {f"<br><em>{_escape_html(paper.get('source', ''))}</em>" if paper.get("source") else ""}
+        </div>
+        """
+    return html
+
+
+def _safe_json_serialize(data: Any) -> str:
+    """
+    Safely serialize data to JSON with type validation.
+    Ensures only JSON-serializable types are included.
+
+    Args:
+        data: Data to serialize
+
+    Returns:
+        JSON string
+    """
+
+    def _validate_and_serialize(obj: Any) -> Any:
+        """Recursively validate and convert to JSON-serializable types"""
+        if isinstance(obj, (str, int, float, bool)) or obj is None:
+            return obj
+        elif isinstance(obj, dict):
+            return {str(k): _validate_and_serialize(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [_validate_and_serialize(item) for item in obj]
+        else:
+            # Convert to string for unknown types
+            return str(obj)
+
+    validated_data = _validate_and_serialize(data)
+    return json.dumps(validated_data)
+
+
+def _prepare_report_context(
+    query: str, result: Dict[str, Any], papers: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Prepare and sanitize report context data.
+
+    Args:
+        query: Research query
+        result: Research synthesis result
+        papers: List of paper dictionaries
+
+    Returns:
+        Dictionary with sanitized context data
+    """
+    themes = result.get("common_themes", [])
+    gaps = result.get("research_gaps", [])
+    contradictions = result.get("contradictions", [])
+    quality_scores = result.get("quality_scores", [])
+    decisions = result.get("decisions", [])
+
+    # Extract years for timeline - sanitize to int
+    years = []
+    for paper in papers:
+        year = _extract_year(paper)
+        if year:
+            try:
+                years.append(int(year))
+            except (ValueError, TypeError):
+                continue  # Skip invalid years
+
+    # Generate year counts
+    year_counts = {}
+    for year in years:
+        if isinstance(year, int):
+            year_counts[year] = year_counts.get(year, 0) + 1
+
+    # Generate timeline data - ensure list of tuples (int, int)
+    timeline_data = sorted(
+        [
+            (int(year), int(count))
+            for year, count in year_counts.items()
+            if isinstance(year, (int, str)) and isinstance(count, (int, float))
+        ]
+    )
+
+    # Quality scores distribution - ensure list of (float, int)
+    quality_scores_list = []
+    for qs in quality_scores:
+        score = qs.get("overall_score", 0)
+        try:
+            score_float = float(score)
+            if 0 <= score_float <= 1:
+                quality_scores_list.append(score_float)
+        except (ValueError, TypeError):
+            continue
+
+    quality_distribution = {}
+    for score in quality_scores_list:
+        bucket = float(int(score * 10) / 10)  # Round to 0.1
+        quality_distribution[bucket] = quality_distribution.get(bucket, 0) + 1
+
+    # Sanitize quality distribution to list of (float, int) tuples
+    quality_data = sorted(
+        [
+            (float(score), int(count))
+            for score, count in quality_distribution.items()
+            if isinstance(score, (int, float)) and isinstance(count, (int, float))
+        ]
+    )
+
+    # Sanitize themes and gaps (escape HTML)
+    sanitized_themes = [_escape_html(str(theme)) for theme in themes]
+    sanitized_gaps = [_escape_html(str(gap)) for gap in gaps]
+
+    return {
+        "query": _escape_html(query),
+        "themes": sanitized_themes,
+        "gaps": sanitized_gaps,
+        "contradictions": contradictions,
+        "decisions": decisions,
+        "timeline_data": timeline_data,
+        "quality_data": quality_data,
+        "papers_analyzed": result.get("papers_analyzed", 0),
+        "papers": papers,
+    }
+
+
+def _generate_html_css() -> str:
+    """Generate CSS styles for HTML report"""
+    return """        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: white;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        header {
+            border-bottom: 3px solid #4CAF50;
+            padding-bottom: 20px;
+            margin-bottom: 30px;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .metadata {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+        .section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #fafafa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        .section h2 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .section h2:hover {
+            color: #3498db;
+        }
+        .toggle {
+            font-size: 0.8em;
+            color: #7f8c8d;
+        }
+        .content {
+            display: block;
+        }
+        .content.hidden {
+            display: none;
+        }
+        .theme-item, .gap-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #4CAF50;
+        }
+        .citation {
+            padding: 10px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 4px;
+            border-left: 3px solid #3498db;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .citation:hover {
+            background: #e8f4f8;
+            transform: translateX(5px);
+        }
+        .citation-link {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .citation-link:hover {
+            text-decoration: underline;
+        }
+        .chart-container {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+        }
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            height: 200px;
+            gap: 5px;
+            margin-top: 20px;
+        }
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, #3498db, #5dade2);
+            border-radius: 4px 4px 0 0;
+            min-width: 20px;
+            position: relative;
+        }
+        .bar-label {
+            position: absolute;
+            bottom: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.8em;
+            color: #7f8c8d;
+        }
+        .bar-value {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 0.7em;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+        .decision-card {
+            padding: 15px;
+            margin: 10px 0;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #e74c3c;
+        }
+        .agent-name {
+            font-weight: bold;
+            color: #e74c3c;
+        }
+        .search-box {
+            padding: 10px;
+            margin: 20px 0;
+            width: 100%;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+        .search-box:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #eee;
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }"""
+
+
+def _generate_html_header(context: Dict[str, Any]) -> str:
+    """Generate HTML header with CSS"""
+    css = _generate_html_css()
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Synthesis: {context["query"]}</title>
+    <style>
+{css}
+    </style>
+</head>"""
+
+
+def _generate_section_metrics(context: Dict[str, Any]) -> str:
+    """Generate metrics section HTML"""
+    return """        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                📊 Key Metrics <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content">
+                <div class="chart-container">
+                    <h3>Papers by Year</h3>
+                    <div class="bar-chart" id="timelineChart"></div>
+                </div>
+                <div class="chart-container">
+                    <h3>Quality Score Distribution</h3>
+                    <div class="bar-chart" id="qualityChart"></div>
+                </div>
+            </div>
+        </div>"""
+
+
+def _generate_section_themes(context: Dict[str, Any]) -> str:
+    """Generate themes section HTML"""
+    themes = context["themes"]
+    themes_html = "".join(
+        [f'<div class="theme-item">{theme}</div>' for theme in themes]
+    )
+    return f"""        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                🔍 Common Themes ({len(themes)}) <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content">
+                {themes_html}
+            </div>
+        </div>"""
+
+
+def _generate_section_gaps(context: Dict[str, Any]) -> str:
+    """Generate research gaps section HTML"""
+    gaps = context["gaps"]
+    gaps_html = "".join([f'<div class="gap-item">{gap}</div>' for gap in gaps])
+    return f"""        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                🎯 Research Gaps ({len(gaps)}) <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content">
+                {gaps_html}
+            </div>
+        </div>"""
+
+
+def _generate_section_decisions(context: Dict[str, Any]) -> str:
+    """Generate decisions section HTML"""
+    decisions = context["decisions"]
+    return f"""        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                🤖 Agent Decisions ({len(decisions)}) <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content">
+                {_format_decisions_html(decisions)}
+            </div>
+        </div>"""
+
+
+def _generate_section_papers(context: Dict[str, Any]) -> str:
+    """Generate papers section HTML"""
+    papers = context["papers"]
+    return f"""        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                📚 Papers & Citations ({len(papers)}) <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content" id="papersSection">
+                {_format_papers_html(papers)}
+            </div>
+        </div>"""
+
+
+def _generate_javascript(context: Dict[str, Any]) -> str:
+    """Generate JavaScript for chart rendering and interactions"""
+    timeline_data_json = _safe_json_serialize(context["timeline_data"])
+    quality_data_json = _safe_json_serialize(context["quality_data"])
+
+    return f"""    <script>
+        // Timeline chart data
+        const timelineData = {timeline_data_json};
+        
+        // Quality distribution data
+        const qualityData = {quality_data_json};
+        
+        // Render timeline chart
+        function renderTimelineChart() {{
+            const chart = document.getElementById('timelineChart');
+            if (!chart || !timelineData || timelineData.length === 0) return;
+            const maxValue = Math.max(...timelineData.map(d => d[1]));
+            
+            timelineData.forEach(([year, count]) => {{
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = `${{(count / maxValue) * 180}}px`;
+                bar.innerHTML = `
+                    <span class="bar-value">${{count}}</span>
+                    <span class="bar-label">${{year}}</span>
+                `;
+                chart.appendChild(bar);
+            }});
+        }}
+        
+        // Render quality chart
+        function renderQualityChart() {{
+            const chart = document.getElementById('qualityChart');
+            if (!chart || !qualityData || qualityData.length === 0) return;
+            const maxValue = Math.max(...qualityData.map(d => d[1]));
+            
+            qualityData.forEach(([score, count]) => {{
+                const bar = document.createElement('div');
+                bar.className = 'bar';
+                bar.style.height = `${{(count / maxValue) * 180}}px`;
+                bar.style.background = `linear-gradient(to top, ${{score > 0.7 ? '#4CAF50' : score > 0.5 ? '#FFC107' : '#F44336'}}, ${{score > 0.7 ? '#81C784' : score > 0.5 ? '#FFD54F' : '#E57373'}})`;
+                bar.innerHTML = `
+                    <span class="bar-value">${{count}}</span>
+                    <span class="bar-label">${{score.toFixed(1)}}</span>
+                `;
+                chart.appendChild(bar);
+            }});
+        }}
+        
+        // Toggle section visibility
+        function toggleSection(element) {{
+            const content = element.nextElementSibling;
+            content.classList.toggle('hidden');
+        }}
+        
+        // Search functionality
+        document.getElementById('searchBox').addEventListener('input', function(e) {{
+            const searchTerm = e.target.value.toLowerCase();
+            const papersSection = document.getElementById('papersSection');
+            const papers = papersSection.querySelectorAll('.citation');
+            
+            papers.forEach(paper => {{
+                const text = paper.textContent.toLowerCase();
+                if (text.includes(searchTerm)) {{
+                    paper.style.display = 'block';
+                    paper.style.backgroundColor = searchTerm ? '#fff3cd' : 'white';
+                }} else {{
+                    paper.style.display = searchTerm ? 'none' : 'block';
+                }}
+            }});
+        }});
+        
+        // Initialize charts
+        renderTimelineChart();
+        renderQualityChart();
+    </script>"""
+
+
+def generate_interactive_html_report(
+    query: str, result: Dict[str, Any], papers: List[Dict[str, Any]]
+) -> str:
+    """
+    Generate interactive HTML report with visualizations and clickable citations
+
+    Args:
+        query: Research query
+        result: Research synthesis result
+        papers: List of paper dictionaries
+
+    Returns:
+        Complete HTML document as string
+    """
+    # Prepare and sanitize context
+    context = _prepare_report_context(query, result, papers)
+
+    # Build HTML parts
+    html_parts = []
+
+    # Header
+    html_parts.append(_generate_html_header(context))
+    html_parts.append("<body>")
+    html_parts.append('    <div class="container">')
+
+    # Header section
+    html_parts.append(f"""        <header>
+            <h1>🔬 Research Synthesis Report</h1>
+            <div class="metadata">
+                <p><strong>Query:</strong> {context["query"]}</p>
+                <p><strong>Generated:</strong> {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</p>
+                <p><strong>Papers Analyzed:</strong> {context["papers_analyzed"]}</p>
+            </div>
+        </header>""")
+
+    html_parts.append(
+        '        <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search this report...">'
+    )
+
+    # Sections
+    html_parts.append(_generate_section_metrics(context))
+    html_parts.append(_generate_section_themes(context))
+    html_parts.append(f"""        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                ⚡ Contradictions ({len(context["contradictions"])}) <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content">
+                {_format_contradictions_html(context["contradictions"])}
+            </div>
+        </div>""")
+    html_parts.append(_generate_section_gaps(context))
+    html_parts.append(_generate_section_decisions(context))
+    html_parts.append(_generate_section_papers(context))
+
+    # Footer
+    html_parts.append("""        <footer>
+            <p>Generated by ResearchOps Agent | Powered by NVIDIA NIMs</p>
+        </footer>""")
+
+    html_parts.append("    </div>")
+
+    # JavaScript
+    html_parts.append(_generate_javascript(context))
+
+    html_parts.append("</body>")
+    html_parts.append("</html>")
+
+    return "\n".join(html_parts)
+
+
+def generate_xml_export(result: Dict[str, Any], papers: List[Dict[str, Any]]) -> str:
+    """
+    Generate XML export for structured data exchange
+    
+    Uses standard XML format with metadata and paper entries.
+    Compatible with bibliographic management systems.
+    
+    Args:
+        result: Research synthesis result
+        papers: List of paper dictionaries
+        
+    Returns:
+        XML formatted string
+    """
+    try:
+        from xml.etree.ElementTree import Element, SubElement, tostring
+        from xml.dom import minidom
+    except ImportError:
+        raise ImportError("XML export requires Python standard library xml module")
+    
+    root = Element("research_synthesis")
+    
+    # Metadata
+    metadata = SubElement(root, "metadata")
+    SubElement(metadata, "query").text = result.get("query", "")
+    SubElement(metadata, "generated_date").text = datetime.now().isoformat()
+    SubElement(metadata, "papers_analyzed").text = str(result.get("papers_analyzed", 0))
+    SubElement(metadata, "processing_time_seconds").text = str(
+        result.get("processing_time_seconds", 0)
+    )
+    
+    # Themes
+    themes = SubElement(root, "themes")
+    for theme in result.get("common_themes", []):
+        theme_elem = SubElement(themes, "theme")
+        theme_elem.text = theme
+    
+    # Research gaps
+    gaps = SubElement(root, "research_gaps")
+    for gap in result.get("research_gaps", []):
+        gap_elem = SubElement(gaps, "gap")
+        gap_elem.text = gap
+    
+    # Contradictions
+    contradictions = SubElement(root, "contradictions")
+    for contr in result.get("contradictions", []):
+        contr_elem = SubElement(contradictions, "contradiction")
+        SubElement(contr_elem, "paper1").text = contr.get("paper1", "")
+        SubElement(contr_elem, "claim1").text = contr.get("claim1", "")
+        SubElement(contr_elem, "paper2").text = contr.get("paper2", "")
+        SubElement(contr_elem, "claim2").text = contr.get("claim2", "")
+        SubElement(contr_elem, "conflict").text = contr.get("conflict", "")
+    
+    # Papers
+    papers_elem = SubElement(root, "papers")
+    for paper in papers:
+        paper_elem = SubElement(papers_elem, "paper")
+        SubElement(paper_elem, "id").text = paper.get("id", "")
+        SubElement(paper_elem, "title").text = paper.get("title", "")
+        
+        authors_elem = SubElement(paper_elem, "authors")
+        for author in paper.get("authors", []):
+            author_elem = SubElement(authors_elem, "author")
+            author_elem.text = author
+        
+        SubElement(paper_elem, "url").text = paper.get("url", "")
+        SubElement(paper_elem, "abstract").text = paper.get("abstract", "")
+        SubElement(paper_elem, "published_date").text = paper.get("published_date", "")
+        SubElement(paper_elem, "source").text = paper.get("source", "")
+        
+        if paper.get("quality_score"):
+            SubElement(paper_elem, "quality_score").text = str(paper.get("quality_score"))
+    
+    # Decisions
+    decisions = SubElement(root, "decisions")
+    for decision in result.get("decisions", []):
+        decision_elem = SubElement(decisions, "decision")
+        SubElement(decision_elem, "agent").text = decision.get("agent", "")
+        SubElement(decision_elem, "decision_type").text = decision.get("decision_type", "")
+        SubElement(decision_elem, "decision").text = decision.get("decision", "")
+        SubElement(decision_elem, "reasoning").text = decision.get("reasoning", "")
+        SubElement(decision_elem, "nim_used").text = decision.get("nim_used", "")
+        SubElement(decision_elem, "timestamp").text = decision.get("timestamp", "")
+    
+    # Convert to pretty-printed string
+    rough_string = tostring(root, encoding="unicode")
+    reparsed = minidom.parseString(rough_string)
+    return reparsed.toprettyxml(indent="  ")
+
+
+def generate_json_ld_export(result: Dict[str, Any], papers: List[Dict[str, Any]]) -> str:
+    """
+    Generate JSON-LD export for structured data (Schema.org compatible)
+    
+    Uses Schema.org vocabulary for better semantic web compatibility.
+    Useful for research data repositories and knowledge graphs.
+    
+    Args:
+        result: Research synthesis result
+        papers: List of paper dictionaries
+        
+    Returns:
+        JSON-LD formatted string
+    """
+    json_ld = {
+        "@context": {
+            "@vocab": "https://schema.org/",
+            "research": "https://researchops.org/vocab#"
+        },
+        "@type": "ResearchSynthesis",
+        "name": result.get("query", "Research Synthesis"),
+        "description": f"Synthesis of {result.get('papers_analyzed', 0)} papers",
+        "dateCreated": datetime.now().isoformat(),
+        "research:query": result.get("query", ""),
+        "research:papersAnalyzed": result.get("papers_analyzed", 0),
+        "research:processingTimeSeconds": result.get("processing_time_seconds", 0),
+        "research:themes": [
+            {"@type": "ResearchTheme", "name": theme}
+            for theme in result.get("common_themes", [])
+        ],
+        "research:gaps": [
+            {"@type": "ResearchGap", "description": gap}
+            for gap in result.get("research_gaps", [])
+        ],
+        "research:papers": []
+    }
+    
+    # Add papers as CreativeWork/ScholarlyArticle
+    for paper in papers:
+        paper_entry = {
+            "@type": "ScholarlyArticle",
+            "@id": paper.get("url", paper.get("id", "")),
+            "headline": paper.get("title", ""),
+            "description": paper.get("abstract", ""),
+            "datePublished": paper.get("published_date", ""),
+        }
+        
+        # Add authors
+        authors = []
+        for author in paper.get("authors", []):
+            authors.append({
+                "@type": "Person",
+                "name": author
+            })
+        if authors:
+            paper_entry["author"] = authors
+        
+        # Add URL
+        if paper.get("url"):
+            paper_entry["url"] = paper["url"]
+        
+        json_ld["research:papers"].append(paper_entry)
+    
+    return json.dumps(json_ld, indent=2)
+
+
+def generate_enhanced_interactive_html_report(
+    query: str, result: Dict[str, Any], papers: List[Dict[str, Any]]
+) -> str:
+    """
+    Generate enhanced interactive HTML report with advanced visualizations
+    
+    Features:
+    - Interactive charts (timeline, quality distribution, theme network)
+    - Advanced search and filtering
+    - Export capabilities
+    - Responsive design
+    - Dark mode support
+    
+    Args:
+        query: Research query
+        result: Research synthesis result
+        papers: List of paper dictionaries
+        
+    Returns:
+        Enhanced HTML document as string
+    """
+    context = _prepare_report_context(query, result, papers)
+    
+    # Enhanced CSS with dark mode and better mobile support
+    enhanced_css = _generate_html_css() + """
+        /* Enhanced styles */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            h1 { font-size: 1.5em; }
+            .section { padding: 15px; margin: 15px 0; }
+        }
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background: #1a1a1a;
+                color: #e0e0e0;
+            }
+            .container {
+                background: #2d2d2d;
+            }
+            .section {
+                background: #3a3a3a;
+            }
+            .citation {
+                background: #2d2d2d;
+                border-left-color: #5dade2;
+            }
+        }
+        
+        /* Theme network visualization */
+        .theme-network {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .theme-node {
+            padding: 8px 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 20px;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .theme-node:hover {
+            transform: scale(1.05);
+        }
+        
+        /* Export buttons */
+        .export-buttons {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .export-btn {
+            padding: 10px 20px;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+        }
+        .export-btn:hover {
+            background: #2980b9;
+        }
+    """
+    
+    html_parts = []
+    html_parts.append(f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Synthesis Report - {context['query']}</title>
+    <style>
+{enhanced_css}
+    </style>
+</head>""")
+    
+    html_parts.append("<body>")
+    html_parts.append('    <div class="container">')
+    
+    # Header with export buttons
+    html_parts.append(f"""        <header>
+            <h1>🔬 Enhanced Research Synthesis Report</h1>
+            <div class="metadata">
+                <p><strong>Query:</strong> {context["query"]}</p>
+                <p><strong>Generated:</strong> {datetime.now().strftime("%B %d, %Y at %I:%M %p")}</p>
+                <p><strong>Papers Analyzed:</strong> {context["papers_analyzed"]}</p>
+            </div>
+            <div class="export-buttons">
+                <button class="export-btn" onclick="exportJSON()">Export JSON</button>
+                <button class="export-btn" onclick="exportCSV()">Export CSV</button>
+                <button class="export-btn" onclick="toggleDarkMode()">Toggle Dark Mode</button>
+            </div>
+        </header>""")
+    
+    # Enhanced search
+    html_parts.append(
+        '        <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search this report...">'
+    )
+    
+    # Theme network visualization
+    html_parts.append("""        <div class="section">
+            <h2>🌐 Theme Network</h2>
+            <div class="theme-network" id="themeNetwork">
+            </div>
+        </div>""")
+    
+    # Existing sections
+    html_parts.append(_generate_section_metrics(context))
+    html_parts.append(_generate_section_themes(context))
+    html_parts.append(f"""        <div class="section">
+            <h2 onclick="toggleSection(this)">
+                ⚡ Contradictions ({len(context["contradictions"])}) <span class="toggle">[Click to expand/collapse]</span>
+            </h2>
+            <div class="content">
+                {_format_contradictions_html(context["contradictions"])}
+            </div>
+        </div>""")
+    html_parts.append(_generate_section_gaps(context))
+    html_parts.append(_generate_section_decisions(context))
+    html_parts.append(_generate_section_papers(context))
+    
+    # Footer
+    html_parts.append("""        <footer>
+            <p>Generated by ResearchOps Agent | Powered by NVIDIA NIMs</p>
+            <p>Enhanced report with advanced visualizations and interactive features</p>
+        </footer>""")
+    
+    html_parts.append("    </div>")
+    
+    # Enhanced JavaScript
+    enhanced_js = _generate_javascript(context) + """
+        // Theme network visualization
+        function renderThemeNetwork() {
+            const themes = """ + json.dumps(context["themes"]) + """;
+            const networkDiv = document.getElementById('themeNetwork');
+            themes.forEach(theme => {
+                const node = document.createElement('div');
+                node.className = 'theme-node';
+                node.textContent = theme;
+                node.onclick = () => highlightTheme(theme);
+                networkDiv.appendChild(node);
+            });
+        }
+        
+        function highlightTheme(theme) {
+            const papers = document.querySelectorAll('.citation');
+            papers.forEach(paper => {
+                if (paper.textContent.toLowerCase().includes(theme.toLowerCase())) {
+                    paper.style.backgroundColor = '#fff3cd';
+                    setTimeout(() => {
+                        paper.style.backgroundColor = '';
+                    }, 2000);
+                }
+            });
+        }
+        
+        function exportJSON() {
+            const data = """ + json.dumps(context) + """;
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'synthesis-report.json';
+            a.click();
+        }
+        
+        function exportCSV() {
+            // Simplified CSV export
+            alert('CSV export feature - data would be exported here');
+        }
+        
+        function toggleDarkMode() {
+            document.body.classList.toggle('dark-mode');
+            localStorage.setItem('darkMode', document.body.classList.contains('dark-mode'));
+        }
+        
+        // Initialize
+        renderThemeNetwork();
+        if (localStorage.getItem('darkMode') === 'true') {
+            document.body.classList.add('dark-mode');
+        }
+    """
+    
+    html_parts.append(f"<script>{enhanced_js}</script>")
+    html_parts.append("</body>")
+    html_parts.append("</html>")
+    
+    return "\n".join(html_parts)

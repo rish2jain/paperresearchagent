@@ -9,12 +9,94 @@ import json
 from datetime import datetime, timedelta
 import os
 import logging
-from typing import Dict, Optional, Tuple, Any
+from typing import Dict, Optional, Tuple, Any, List
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
 
 CACHE_TTL_HOURS = 24  # Cache for 24 hours
+
+def get_narrative_message(decision_type: str, agent: str, decision: str, metadata: Optional[Dict] = None) -> str:
+    """
+    Generate contextual narrative messages for agent actions.
+    
+    Args:
+        decision_type: Type of decision (e.g., 'RELEVANCE_FILTERING', 'CONTRADICTION_ANALYSIS')
+        agent: Agent name (Scout, Analyst, Synthesizer, Coordinator)
+        decision: The actual decision text
+        metadata: Optional metadata with additional context
+        
+    Returns:
+        Contextual narrative message
+    """
+    metadata = metadata or {}
+    
+    # Scout Agent narratives
+    if agent == "Scout":
+        if "SEARCH" in decision_type or "QUERY" in decision_type:
+            sources = metadata.get("sources", ["arXiv", "PubMed", "Semantic Scholar"])
+            count = metadata.get("paper_count", "15")
+            return f"🔍 Scout is searching {', '.join(sources[:3])} and discovering relevant papers..."
+        elif "FILTER" in decision_type or "RELEVANCE" in decision_type:
+            threshold = metadata.get("relevance_threshold", 0.7)
+            return f"🔍 Scout is filtering papers by relevance (threshold: {threshold:.0%})..."
+        elif "COMPLETE" in decision_type:
+            total = metadata.get("total_papers", "25")
+            return f"✨ Scout found {total} highly relevant papers across multiple databases!"
+        else:
+            return f"🔍 Scout: {decision}"
+    
+    # Analyst Agent narratives
+    elif agent == "Analyst":
+        if "EXTRACT" in decision_type or "ANALYSIS" in decision_type:
+            paper_title = metadata.get("paper_title", "research paper")
+            if len(paper_title) > 60:
+                paper_title = paper_title[:60] + "..."
+            return f"📊 Analyst is extracting key insights from '{paper_title}'..."
+        elif "METHOD" in decision_type:
+            return f"📊 Analyst is analyzing methodology and experimental design..."
+        elif "QUALITY" in decision_type:
+            return f"📊 Analyst is assessing paper quality and statistical rigor..."
+        elif "COMPLETE" in decision_type:
+            papers_analyzed = metadata.get("papers_analyzed", "10")
+            return f"✅ Analyst completed deep analysis of {papers_analyzed} papers!"
+        else:
+            return f"📊 Analyst: {decision}"
+    
+    # Synthesizer Agent narratives
+    elif agent == "Synthesizer":
+        if "CONTRADICTION" in decision_type:
+            count = metadata.get("contradiction_count", "3")
+            return f"⚡ Synthesizer detected {count} contradiction(s) between papers—critical insights you'd miss manually!"
+        elif "THEME" in decision_type:
+            theme_count = metadata.get("theme_count", "5")
+            return f"💡 Synthesizer identified {theme_count} major research theme(s) across all papers..."
+        elif "GAP" in decision_type:
+            gap_count = metadata.get("gap_count", "4")
+            return f"🎯 Synthesizer discovered {gap_count} research gap(s) for potential future work..."
+        elif "CLUSTER" in decision_type:
+            return f"🧩 Synthesizer is clustering findings and identifying patterns..."
+        elif "COMPLETE" in decision_type:
+            return f"✨ Synthesizer completed cross-document analysis and pattern identification!"
+        else:
+            return f"🧩 Synthesizer: {decision}"
+    
+    # Coordinator Agent narratives
+    elif agent == "Coordinator":
+        if "QUALITY" in decision_type or "ASSESSMENT" in decision_type:
+            quality_score = metadata.get("quality_score", 0.85)
+            return f"🎯 Coordinator is assessing synthesis quality (current score: {quality_score:.0%})..."
+        elif "COMPLETE" in decision_type or "READY" in decision_type:
+            return f"✅ Coordinator confirmed synthesis is complete and research-grade quality!"
+        elif "EXPAND" in decision_type or "MORE" in decision_type:
+            return f"🎯 Coordinator determined more papers needed for comprehensive coverage..."
+        elif "VALIDATE" in decision_type:
+            return f"🎯 Coordinator is validating themes and contradictions for accuracy..."
+        else:
+            return f"🎯 Coordinator: {decision}"
+    
+    # Default fallback
+    return f"🤖 {agent}: {decision}"
 
 # Result caching class for 95% faster repeat queries
 import hashlib
@@ -334,6 +416,140 @@ st.set_page_config(
 # Setup keyboard shortcuts and accessibility
 setup_keyboard_shortcuts()
 
+
+# Lazy Loading Helper Functions for Papers Display
+def render_paper_lazy(paper: Dict, idx: int, show_details: bool = False) -> None:
+    """
+    Render paper with on-demand detail loading to improve performance.
+
+    Args:
+        paper: Paper metadata dict with title, authors, abstract, etc.
+        idx: Paper index (0-based)
+        show_details: Whether to load full details (default: False)
+    """
+    # Always show title and basic info (minimal load)
+    paper_title = paper.get("title", "Untitled Paper")
+    st.markdown(f"**{idx+1}. {paper_title}**")
+
+    # Basic metadata (always visible, minimal footprint)
+    meta_parts = []
+    if "year" in paper and paper["year"]:
+        meta_parts.append(f"Year: {paper['year']}")
+    if "source" in paper and paper["source"]:
+        meta_parts.append(f"Source: {paper['source']}")
+
+    if meta_parts:
+        st.caption(" | ".join(meta_parts))
+
+    # Details loaded only on expand (lazy loading)
+    with st.expander("📄 View Full Details", expanded=show_details):
+        # Authors
+        authors = paper.get("authors", "")
+        if authors:
+            if isinstance(authors, list):
+                authors_str = ", ".join(authors)
+            else:
+                authors_str = str(authors)
+            st.markdown(f"**Authors:** {authors_str}")
+        else:
+            st.caption("*Authors not available*")
+
+        # Abstract (lazy loaded on expand)
+        abstract = paper.get("abstract", "")
+        if abstract and abstract != "Loading...":
+            st.markdown(f"**Abstract:** {abstract}")
+        elif abstract == "Loading...":
+            st.info("Loading abstract...")
+        else:
+            st.caption("*Abstract not available*")
+
+        # DOI and external links
+        if "doi" in paper and paper["doi"]:
+            st.markdown(f"**DOI:** [{paper['doi']}](https://doi.org/{paper['doi']})")
+
+        if "url" in paper and paper["url"]:
+            st.markdown(f"[📎 View Paper]({paper['url']})")
+
+        # Additional metadata (if available)
+        if "venue" in paper and paper["venue"]:
+            st.caption(f"Published in: {paper['venue']}")
+
+        if "citations" in paper and paper["citations"]:
+            st.caption(f"Citations: {paper['citations']}")
+
+
+def render_papers_paginated(papers: List[Dict], items_per_page: int = 10) -> None:
+    """
+    Render papers with pagination to avoid loading all at once.
+    Dramatically improves performance for 50+ papers.
+
+    Args:
+        papers: List of paper dicts
+        items_per_page: Papers per page (default: 10)
+    """
+    total_papers = len(papers)
+
+    if total_papers == 0:
+        st.info("No papers to display")
+        return
+
+    total_pages = (total_papers + items_per_page - 1) // items_per_page
+
+    # Initialize page state if not exists
+    if "current_paper_page" not in st.session_state:
+        st.session_state.current_paper_page = 1
+
+    # Page navigation controls
+    if total_pages > 1:
+        col1, col2, col3, col4, col5 = st.columns([1, 1, 2, 1, 1])
+
+        with col1:
+            if st.button("⏮️ First", disabled=(st.session_state.current_paper_page == 1)):
+                st.session_state.current_paper_page = 1
+
+        with col2:
+            if st.button("◀️ Prev", disabled=(st.session_state.current_paper_page == 1)):
+                st.session_state.current_paper_page -= 1
+
+        with col3:
+            # Direct page input
+            current_page = st.number_input(
+                "Page",
+                min_value=1,
+                max_value=total_pages,
+                value=st.session_state.current_paper_page,
+                key="paper_page_input",
+                label_visibility="collapsed"
+            )
+            if current_page != st.session_state.current_paper_page:
+                st.session_state.current_paper_page = current_page
+
+        with col4:
+            if st.button("▶️ Next", disabled=(st.session_state.current_paper_page == total_pages)):
+                st.session_state.current_paper_page += 1
+
+        with col5:
+            if st.button("⏭️ Last", disabled=(st.session_state.current_paper_page == total_pages)):
+                st.session_state.current_paper_page = total_pages
+
+    # Calculate indices for current page
+    current_page = st.session_state.current_paper_page
+    start_idx = (current_page - 1) * items_per_page
+    end_idx = min(start_idx + items_per_page, total_papers)
+
+    # Show page info
+    st.caption(
+        f"Showing papers **{start_idx+1}** to **{end_idx}** of **{total_papers}** "
+        f"(Page {current_page} of {total_pages})"
+    )
+
+    # Render only current page (key performance optimization)
+    for idx, paper in enumerate(papers[start_idx:end_idx], start=start_idx):
+        render_paper_lazy(paper, idx, show_details=False)
+        if idx < end_idx - 1:  # Don't add separator after last paper
+            st.markdown("---")
+
+
 # Custom CSS for better styling with improved contrast, accessibility, and mobile responsiveness
 def load_custom_css():
     """
@@ -471,6 +687,31 @@ with st.sidebar:
         """)
 
     st.markdown("---")
+    
+    # Session statistics
+    with st.expander("📊 Session Stats", expanded=False):
+        session = SessionManager.get()
+        stats = SessionManager.get_stats()
+        
+        st.metric("Queries Run", stats["query_count"])
+        
+        if stats["last_query"]:
+            last_query_time = datetime.fromisoformat(stats["last_query"])
+            st.caption(f"Last: {last_query_time.strftime('%H:%M:%S')}")
+        
+        if stats["current_query"]:
+            st.caption(f"Query: {stats['current_query'][:30]}...")
+        
+        st.caption(f"Session: {stats['session_id'][:8]}...")
+        
+        if stats["papers_count"] > 0:
+            st.caption(f"📄 {stats['papers_count']} papers in last result")
+        if stats["decisions_count"] > 0:
+            st.caption(f"🤖 {stats['decisions_count']} decisions logged")
+        if stats["cache_entries"] > 0:
+            st.caption(f"💾 {stats['cache_entries']} cached results")
+
+    st.markdown("---")
 
     # Social Proof Metrics - Now configurable with caching and validation
     st.header("👥 Researchers Trust Us")
@@ -582,12 +823,21 @@ with st.sidebar:
 
     # Quick examples
     st.header("💡 Example Queries")
+    
+    session = SessionManager.get()
+    
     if st.button("ML for Medical Imaging", use_container_width=True):
-        st.session_state["example_query"] = "machine learning for medical imaging"
+        session.query = "machine learning for medical imaging"
+        SessionManager.update(session)
+        st.rerun()
     if st.button("Climate Change Mitigation", use_container_width=True):
-        st.session_state["example_query"] = "climate change mitigation strategies"
+        session.query = "climate change mitigation strategies"
+        SessionManager.update(session)
+        st.rerun()
     if st.button("Quantum Computing", use_container_width=True):
-        st.session_state["example_query"] = "quantum computing algorithms"
+        session.query = "quantum computing algorithms"
+        SessionManager.update(session)
+        st.rerun()
 
 # Skip navigation link for accessibility
 st.markdown(
@@ -770,6 +1020,19 @@ if start_button and query:
                 # Cache the successful result for future queries
                 ResultCache.set(query, max_papers, paper_sources_str, date_range_str, result)
                 logger.info(f"Cached result for query: {query[:50]}...")
+                
+                # Store results in session
+                SessionManager.set_results(
+                    synthesis=result.get("synthesis", ""),
+                    papers=result.get("papers", []),
+                    decisions=result.get("decisions", []),
+                    metrics={
+                        "papers_found": len(result.get("papers", [])),
+                        "decisions_made": len(result.get("decisions", [])),
+                        "processing_time": result.get("processing_time_seconds", 0),
+                        "completion_time": datetime.now()
+                    }
+                )
 
         # Process result (whether from cache or API)
         if result:
@@ -793,39 +1056,52 @@ if start_button and query:
             for decision in decisions:
                 agent = decision.get("agent", "")
                 decision_type = decision.get("decision_type", "")
+                decision_text = decision.get("decision", "")
+                reasoning = decision.get("reasoning", "")
+                
+                # Extract metadata for narrative context
+                metadata = {
+                    "paper_count": papers_found,
+                    "contradiction_count": contradictions_count,
+                    "theme_count": themes_count,
+                    "gap_count": gaps_count,
+                    "papers_analyzed": papers_found,
+                }
+
+                # Generate narrative message
+                narrative = get_narrative_message(decision_type, agent, decision_text, metadata)
 
                 if agent == "Scout":
                     stages_completed["search"] = True
-                    scout_story.success(
-                        f"✨ **Scout Agent**: Found {papers_found} relevant papers across 7 databases! "
-                        f"Some are highly-cited breakthroughs."
-                    )
+                    scout_story.success(narrative)
+                    # Show reasoning in expander
+                    if reasoning and len(reasoning) > 50:
+                        with scout_story.expander("🔍 See Scout's reasoning", expanded=False):
+                            st.markdown(f"*{reasoning}*")
 
                 elif agent == "Analyst":
                     stages_completed["analyze"] = True
-                    analyst_story.success(
-                        f"📊 **Analyst Agent**: Deep-reading methodologies and extracting key findings from each paper..."
-                    )
+                    analyst_story.success(narrative)
+                    if reasoning and len(reasoning) > 50:
+                        with analyst_story.expander("🔍 See Analyst's reasoning", expanded=False):
+                            st.markdown(f"*{reasoning}*")
 
                 elif agent == "Synthesizer":
                     stages_completed["synthesize"] = True
                     if "CONTRADICTION" in decision_type:
-                        synthesizer_story.warning(
-                            f"⚡ **Discovery**: Found {contradictions_count} contradictions! "
-                            f"Papers disagree on key findings—you'd miss this manually."
-                        )
-                    elif "THEME" in decision_type or "GAP" in decision_type:
-                        synthesizer_story.info(
-                            f"💡 **Synthesizer Agent**: Identified {themes_count} major themes "
-                            f"and {gaps_count} research gaps nobody else has spotted."
-                        )
+                        synthesizer_story.warning(narrative)
+                    else:
+                        synthesizer_story.info(narrative)
+                    if reasoning and len(reasoning) > 50:
+                        with synthesizer_story.expander("🔍 See Synthesizer's reasoning", expanded=False):
+                            st.markdown(f"*{reasoning}*")
 
                 elif agent == "Coordinator":
                     stages_completed["refine"] = True
-                    coordinator_story.success(
-                        f"✅ **Coordinator Agent**: Synthesis is complete and ready! "
-                        f"Quality check passed—all themes and contradictions are clearly explained."
-                    )
+                    coordinator_story.success(narrative)
+                    if reasoning and len(reasoning) > 50:
+                        with coordinator_story.expander("🔍 See Coordinator's reasoning", expanded=False):
+                            st.markdown(f"*{reasoning}*")
 
             # Update progress using new progress tracker information
             progress_info = result.get("progress", {})
@@ -919,22 +1195,6 @@ if start_button and query:
             
             st.markdown("---")
             
-            # Key Metrics
-            st.markdown("## 📈 Key Metrics")
-            metric_col1, metric_col2, metric_col3, metric_col4 = st.columns(4)
-
-            with metric_col1:
-                st.metric("Papers Analyzed", result.get("papers_analyzed", 0))
-            with metric_col2:
-                st.metric("Common Themes", len(result.get("common_themes", [])))
-            with metric_col3:
-                st.metric("Decisions Made", len(result.get("decisions", [])))
-            with metric_col4:
-                time_saved = manual_time_hours * 60 - processing_time_min
-                st.metric("Time Saved", f"{time_saved:.1f} min", delta="97% reduction")
-
-            st.markdown("---")
-            
             # Cost Dashboard (J-4) - Show after results are available
             st.markdown("## 💰 Real-Time Cost Dashboard")
             
@@ -974,94 +1234,88 @@ if start_button and query:
             decisions = result.get("decisions", [])
 
             if decisions:
-                # Identify key decisions (most impactful)
-                key_decision_types = [
-                    "RELEVANCE_FILTERING",
-                    "PAPER_SELECTION",
-                    "CONTRADICTION_ANALYSIS",
-                    "THEME_IDENTIFICATION",
-                    "GAP_IDENTIFICATION",
-                    "SYNTHESIS_QUALITY"
-                ]
+                # Group decisions by agent
+                decisions_by_agent = {}
+                for decision in decisions:
+                    agent = decision.get("agent", "Unknown")
+                    if agent not in decisions_by_agent:
+                        decisions_by_agent[agent] = []
+                    decisions_by_agent[agent].append(decision)
                 
-                key_decisions = [
-                    d for d in decisions 
-                    if any(kdt in d.get("decision_type", "") for kdt in key_decision_types)
-                ][:5]  # Max 5 key decisions
+                # Display grouped decisions with progressive disclosure
+                agent_emoji_map = {
+                    "Scout": "🔍",
+                    "Analyst": "📊",
+                    "Synthesizer": "🧩",
+                    "Coordinator": "🎯",
+                }
                 
-                other_decisions = [d for d in decisions if d not in key_decisions]
+                # Show summary of all agents
+                st.markdown("### 📊 Decision Summary by Agent")
+                summary_cols = st.columns(len(decisions_by_agent))
+                for idx, (agent, agent_decisions) in enumerate(decisions_by_agent.items()):
+                    with summary_cols[idx]:
+                        emoji = agent_emoji_map.get(agent, "🤖")
+                        st.metric(f"{emoji} {agent}", len(agent_decisions))
                 
-                # Show key decisions prominently
-                if key_decisions:
-                    st.markdown("### 🔍 Key Decisions (3-5 Most Important)")
-                    for i, decision in enumerate(key_decisions):
-                        agent_emoji = {
-                            "Scout": "🔍",
-                            "Analyst": "📊",
-                            "Synthesizer": "🧩",
-                            "Coordinator": "🎯",
-                        }.get(decision["agent"], "🤖")
-
-                        agent_class = f"agent-{decision['agent'].lower()}"
-
-                        nim_badge = ""
-                        if decision.get("nim_used"):
-                            if "Reasoning" in decision["nim_used"]:
-                                nim_badge = '<span class="nim-badge nim-reasoning">🧠 Reasoning NIM</span>'
-                            elif "Embedding" in decision["nim_used"]:
-                                nim_badge = '<span class="nim-badge nim-embedding">🔍 Embedding NIM</span>'
-
-                        # Generate ARIA-friendly attributes
-                        aria_label = (
-                            f"{decision['agent']} decision: {decision['decision_type']}"
-                        )
-                        decision_id = f"decision-{i}-{decision['agent']}"
-
-                        # Simplified decision display - researcher-friendly
-                        decision_summary = decision.get("decision", "")
-                        reasoning_simple = decision.get("reasoning", "")
-                        
-                        # Make reasoning more readable
-                        if len(reasoning_simple) > 200:
-                            reasoning_simple = reasoning_simple[:200] + "..."
-                        
-                        st.markdown(
-                            f"""
-                        <div 
-                            class="decision-card {agent_class}" 
-                            role="article"
-                            aria-label="{aria_label}"
-                            aria-describedby="{decision_id}"
-                            tabindex="0"
-                            id="{decision_id}"
-                        >
-                            <strong>{agent_emoji} {decision["agent"]} Agent</strong>{nim_badge}
-                            <br><br>
-                            <strong style="color: #1565C0; font-size: 1.1em;">{decision_summary}</strong>
-                            <br>
-                            <small style="color: #616161;">{reasoning_simple}</small>
-                        </div>
-                        """,
-                            unsafe_allow_html=True,
-                        )
+                st.markdown("---")
                 
-                # Show other decisions in expander
-                if other_decisions:
-                    with st.expander(f"📋 View All {len(other_decisions)} Additional Decisions", expanded=False):
-                        st.caption(f"Total decisions made: {len(decisions)}. Showing {len(key_decisions)} key decisions above.")
-                        for i, decision in enumerate(other_decisions):
-                            agent_emoji = {
-                                "Scout": "🔍",
-                                "Analyst": "📊",
-                                "Synthesizer": "🧩",
-                                "Coordinator": "🎯",
-                            }.get(decision["agent"], "🤖")
+                # Show each agent's decisions in expandable sections
+                for agent, agent_decisions in decisions_by_agent.items():
+                    emoji = agent_emoji_map.get(agent, "🤖")
+                    
+                    # Determine if this agent's decisions should be expanded by default
+                    # Expand if has contradictions or important decisions
+                    has_important = any(
+                        "CONTRADICTION" in d.get("decision_type", "") or 
+                        "GAP" in d.get("decision_type", "") or
+                        "QUALITY" in d.get("decision_type", "")
+                        for d in agent_decisions
+                    )
+                    
+                    with st.expander(
+                        f"{emoji} {agent} Agent ({len(agent_decisions)} decisions)", 
+                        expanded=has_important
+                    ):
+                        for i, decision in enumerate(agent_decisions, 1):
+                            decision_type = decision.get("decision_type", "Unknown")
+                            decision_text = decision.get("decision", "")
+                            reasoning = decision.get("reasoning", "")
                             
-                            st.markdown(f"**{agent_emoji} {decision['agent']}**: {decision.get('decision', 'N/A')}")
-                            st.caption(decision.get('reasoning', '')[:150] + "...")
+                            # Show decision with type badge
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.markdown(f"**{i}. {decision_text}**")
+                            with col2:
+                                # NIM badge
+                                nim_used = decision.get("nim_used", "")
+                                if "Reasoning" in nim_used:
+                                    st.caption("🧠 Reasoning NIM")
+                                elif "Embedding" in nim_used:
+                                    st.caption("🔍 Embedding NIM")
+                            
+                            # Show reasoning
+                            if reasoning:
+                                reasoning_preview = reasoning[:150] + "..." if len(reasoning) > 150 else reasoning
+                                st.caption(f"*Reasoning: {reasoning_preview}*")
+                                
+                                if len(reasoning) > 150:
+                                    if st.button(f"Show full reasoning", key=f"reasoning_{agent}_{i}"):
+                                        st.info(reasoning)
+                            
+                            # Show metadata if available
+                            metadata = decision.get("metadata", {})
+                            if metadata:
+                                confidence = metadata.get("confidence")
+                                if confidence:
+                                    st.caption(f"Confidence: {confidence:.0%}")
+                            
+                            # Visual separator between decisions
+                            if i < len(agent_decisions):
+                                st.markdown("---")
                 
-                # Create timeline view as alternative
-                with st.expander("📊 Decision Timeline", expanded=False):
+                # Alternative timeline view
+                with st.expander("📊 Decision Timeline View", expanded=False):
                     st.markdown("### 🤖 Agent Decision Timeline")
                     st.markdown("*Visual representation of autonomous decision-making process*")
                     
@@ -1170,33 +1424,6 @@ if start_button and query:
                             st.rerun()
                         except Exception as e:
                             st.warning(f"Feedback recording failed: {e}")
-            
-            # Decision-specific feedback
-            if key_decisions:
-                st.markdown("### 🎯 Which Decision Surprised You?")
-                decision_feedback = st.selectbox(
-                    "Select a decision that surprised you:",
-                    [f"{d['agent']}: {d.get('decision', 'N/A')[:50]}..." for d in key_decisions],
-                    key="surprising_decision",
-                    help="Help us understand which agent decisions are most valuable"
-                )
-                if st.button("Record Surprising Decision", key="record_surprise"):
-                    try:
-                        from feedback import get_feedback_collector, FeedbackType
-                        collector = get_feedback_collector()
-                        synthesis_id = st.session_state.get("current_synthesis_id", "unknown")
-                        selected_idx = [f"{d['agent']}: {d.get('decision', 'N/A')[:50]}..." for d in key_decisions].index(decision_feedback)
-                        decision_id = key_decisions[selected_idx].get("decision_type", "unknown")
-                        collector.record_feedback(
-                            synthesis_id=synthesis_id,
-                            query=query,
-                            feedback_type=FeedbackType.DECISION_SURPRISING,
-                            decision_id=decision_id
-                        )
-                        st.success("Thank you! We'll learn from this.")
-                        st.rerun()
-                    except Exception as e:
-                        st.warning(f"Feedback recording failed: {e}")
 
             st.markdown("---")
 
@@ -1289,6 +1516,36 @@ if start_button and query:
             st.markdown("## 📊 What Your Agents Discovered")
             st.markdown("*Comprehensive findings from {0} papers analyzed across 7 databases*".format(result.get("papers_analyzed", 0)))
 
+            # Synthesis Section with Preview (if available)
+            synthesis_text = result.get("synthesis", "")
+            if synthesis_text:
+                st.markdown("### 📝 Research Synthesis")
+                synthesis_length = len(synthesis_text)
+                
+                if synthesis_length > 1000:  # ~200 words, show preview
+                    with st.expander("📝 Synthesis Preview (Click to expand)", expanded=True):
+                        preview = synthesis_text[:1000] + "..."
+                        st.markdown(preview)
+                    
+                    # Button to show full synthesis
+                    if st.button("📖 Show Full Synthesis", key="show_full_synthesis"):
+                        st.markdown("### 📖 Complete Synthesis")
+                        st.markdown(synthesis_text)
+                        
+                        # Download button for full synthesis
+                        st.download_button(
+                            "💾 Download Synthesis",
+                            data=synthesis_text,
+                            file_name=f"synthesis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
+                            mime="text/markdown",
+                            help="Download the complete synthesis as markdown"
+                        )
+                else:
+                    # Short synthesis, show in full
+                    st.markdown(synthesis_text)
+                
+                st.markdown("---")
+
             # Common Themes
             themes = result.get("common_themes", [])
             themes_count = len(themes) if themes else 0
@@ -1335,6 +1592,67 @@ if start_button and query:
 
             # Extract papers from result (needed for bias detection and citations)
             papers = result.get("papers", [])
+            
+            # Papers Section with Progressive Disclosure
+            if papers:
+                papers_count = len(papers)
+                with st.expander(f"📚 Papers Analyzed ({papers_count} total)", expanded=False):
+                    # Configurable number of papers to show
+                    show_count = st.slider(
+                        "Number of papers to display", 
+                        min_value=5, 
+                        max_value=min(50, papers_count), 
+                        value=min(10, papers_count),
+                        help="Adjust to show more or fewer papers"
+                    )
+                    
+                    for idx, paper in enumerate(papers[:show_count], 1):
+                        paper_title = paper.get("title", "Untitled")
+                        with st.expander(f"{idx}. {paper_title}", expanded=False):
+                            # Authors
+                            authors = paper.get("authors", [])
+                            if authors:
+                                if isinstance(authors, list):
+                                    authors_str = ", ".join(authors[:5])
+                                    if len(authors) > 5:
+                                        authors_str += f" et al. ({len(authors)} total)"
+                                else:
+                                    authors_str = str(authors)
+                                st.markdown(f"**Authors:** {authors_str}")
+                            
+                            # Publication info
+                            year = paper.get("year", "N/A")
+                            venue = paper.get("venue", "N/A")
+                            st.markdown(f"**Published:** {year}")
+                            if venue and venue != "N/A":
+                                st.markdown(f"**Venue:** {venue}")
+                            
+                            # DOI and links
+                            doi = paper.get("doi", "")
+                            if doi:
+                                st.markdown(f"**DOI:** [{doi}](https://doi.org/{doi})")
+                            
+                            url = paper.get("url", "")
+                            if url and url != doi:
+                                st.markdown(f"**URL:** [Link]({url})")
+                            
+                            # Abstract preview (if available)
+                            abstract = paper.get("abstract", "")
+                            if abstract:
+                                abstract_preview = abstract[:200] + "..." if len(abstract) > 200 else abstract
+                                st.markdown(f"**Abstract:** {abstract_preview}")
+                                
+                                if len(abstract) > 200:
+                                    if st.button(f"Show full abstract", key=f"abstract_{idx}"):
+                                        st.markdown(f"**Full Abstract:** {abstract}")
+                            
+                            # Relevance score (if available)
+                            relevance = paper.get("relevance_score", 0)
+                            if relevance > 0:
+                                st.markdown(f"**Relevance Score:** {relevance:.2%}")
+                    
+                    if papers_count > show_count:
+                        st.info(f"Showing {show_count} of {papers_count} papers. Adjust the slider above to see more.")
 
             # Bias Detection Section
             if papers:
@@ -1441,7 +1759,9 @@ if start_button and query:
                             st.write(
                                 f"- Reproducibility: {qs.get('reproducibility_score', 0):.2f}"
                             )
-                            st.write(f"- Venue: {qs.get('venue_score', 0):.2f}")
+                            st.write(
+                                f"- Venue: {qs.get('venue_score', 0):.2f}"
+                            )
                             st.write(
                                 f"- Sample Size: {qs.get('sample_size_score', 0):.2f}"
                             )
@@ -1579,12 +1899,39 @@ if start_button and query:
 
                 # Download citations
                 st.download_button(
-                    label=f"📥 Download {citation_style} Citations",
+                    label=f"📥 {citation_style} Citations",
                     data="\n\n".join([f"{i}. {c}" for i, c in enumerate(citations, 1)]),
                     file_name=f"citations_{citation_style.lower()}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                     mime="text/plain",
                     help=f"Download citations in {citation_style} format",
                 )
+
+            # Papers List Display with Lazy Loading (Phase 2.3 UX Improvement)
+            st.markdown("---")
+            st.markdown("### 📚 Analyzed Papers")
+
+            papers_count = len(papers)
+            st.caption(
+                f"Browse all {papers_count} papers analyzed in this research synthesis. "
+                "Expand any paper to view full details."
+            )
+
+            # Performance optimization: Use pagination for 10+ papers
+            if papers_count >= 10:
+                # Large list - use pagination (10 papers per page)
+                st.info(
+                    f"📊 **Performance Mode**: Displaying {papers_count} papers with pagination "
+                    "for optimal loading speed"
+                )
+                render_papers_paginated(papers, items_per_page=10)
+            elif papers_count > 0:
+                # Small list (1-9 papers) - show all with lazy details
+                for idx, paper in enumerate(papers):
+                    render_paper_lazy(paper, idx, show_details=False)
+                    if idx < papers_count - 1:
+                        st.markdown("---")
+            else:
+                st.info("No papers available to display")
 
             # Download options with multiple formats
             st.markdown("---")
@@ -1976,7 +2323,3 @@ st.markdown(
 """,
     unsafe_allow_html=True,
 )
-
-# Session state management
-if "example_query" not in st.session_state:
-    st.session_state["example_query"] = ""

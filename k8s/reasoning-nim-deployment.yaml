@@ -23,7 +23,7 @@ spec:
 
       containers:
       - name: reasoning-nim
-        image: nvcr.io/nim/meta/llama-3.1-nemotron-nano-8b-instruct:1.0.0
+        image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-v1:1.8.4
         imagePullPolicy: Always
 
         ports:
@@ -47,41 +47,50 @@ spec:
         - name: NIM_JSONL_LOGGING
           value: "1"
 
-        # Resource configuration
+        # Model quantization for performance optimization
+        - name: QUANTIZATION
+          value: "int8"  # INT8 quantization for 2x speedup, minimal accuracy loss
+
+        # Resource configuration (increased for TensorRT engine compilation)
         resources:
           requests:
-            memory: "16Gi"
+            memory: "20Gi"
             cpu: "4"
             nvidia.com/gpu: "1"
           limits:
-            memory: "24Gi"
+            memory: "30Gi"  # Increased for TensorRT engine build
             cpu: "8"
             nvidia.com/gpu: "1"
 
-        # Health checks
+        # Health checks - Extended delays for TensorRT engine compilation (10+ minutes)
         livenessProbe:
           httpGet:
             path: /v1/health/live
             port: 8000
-          initialDelaySeconds: 120
+          initialDelaySeconds: 600  # 10 minutes for first engine build
           periodSeconds: 30
           timeoutSeconds: 10
-          failureThreshold: 3
+          failureThreshold: 5
 
         readinessProbe:
           httpGet:
             path: /v1/health/ready
             port: 8000
-          initialDelaySeconds: 60
+          initialDelaySeconds: 540  # 9 minutes
           periodSeconds: 10
           timeoutSeconds: 5
-          failureThreshold: 3
+          failureThreshold: 5
 
         volumeMounts:
         - name: nim-cache
           mountPath: /opt/nim/.cache
         - name: shm
           mountPath: /dev/shm
+
+      securityContext:
+        fsGroup: 0
+        runAsUser: 0
+        runAsGroup: 0
 
       volumes:
       - name: nim-cache
@@ -126,4 +135,4 @@ spec:
   resources:
     requests:
       storage: 50Gi
-  storageClassName: gp3
+  storageClassName: gp2

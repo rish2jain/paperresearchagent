@@ -4,6 +4,7 @@ Session Manager for Research Ops Agent Web UI
 Provides centralized session state management with clear structure and lifecycle methods.
 Replaces scattered st.session_state access with a clean API.
 """
+
 from dataclasses import dataclass, field, asdict
 from typing import Optional, Dict, List, Any
 from datetime import datetime
@@ -21,11 +22,14 @@ class ResearchSession:
     Consolidates all session-related state in one place for better maintainability
     and clearer data flow.
     """
+
     # Research query and parameters
     query: str = ""
     max_papers: int = 10
-    paper_sources: List[str] = field(default_factory=lambda: ["arxiv", "pubmed", "semantic_scholar"])
-    date_range: tuple = field(default_factory=lambda: (2020, 2024))
+    paper_sources: List[str] = field(
+        default_factory=lambda: ["arxiv", "pubmed", "semantic_scholar"]
+    )
+    date_range: tuple = field(default_factory=lambda: (2020, datetime.now().year))
     use_date_filter: bool = True
 
     # Research results
@@ -50,13 +54,89 @@ class ResearchSession:
     result_cache: Dict = field(default_factory=dict)
 
     def to_dict(self) -> Dict:
-        """Convert session to dictionary for serialization."""
-        return asdict(self)
+        """
+        Convert session to dictionary for serialization.
+
+        Converts datetime objects to ISO 8601 strings and handles nested structures.
+        """
+
+        def convert_datetime(value: Any) -> Any:
+            """Recursively convert datetime objects to ISO format strings."""
+            if isinstance(value, datetime):
+                return value.isoformat()
+            elif isinstance(value, dict):
+                return {k: convert_datetime(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [convert_datetime(item) for item in value]
+            elif isinstance(value, tuple):
+                return tuple(convert_datetime(item) for item in value)
+            else:
+                return value
+
+        data = asdict(self)
+        return convert_datetime(data)
 
     @classmethod
     def from_dict(cls, data: Dict) -> "ResearchSession":
-        """Create session from dictionary."""
-        return cls(**data)
+        """
+        Create session from dictionary.
+
+        Parses ISO 8601 datetime strings back to datetime objects.
+        """
+
+        def parse_datetime(value: Any, field_name: str = None) -> Any:
+            """
+            Recursively parse ISO format datetime strings back to datetime objects.
+
+            Args:
+                value: Value to potentially convert
+                field_name: Name of the field (for targeted datetime parsing)
+            """
+            if value is None:
+                return None
+            elif isinstance(value, str):
+                # Check if this is a datetime string (ISO format)
+                try:
+                    # Try parsing as ISO format datetime
+                    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+                except (ValueError, AttributeError):
+                    # Not a datetime string, return as-is
+                    return value
+            elif isinstance(value, dict):
+                return {k: parse_datetime(v, k) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [parse_datetime(item, field_name) for item in value]
+            elif isinstance(value, tuple):
+                return tuple(parse_datetime(item, field_name) for item in value)
+            else:
+                return value
+
+        # Parse datetime fields specifically
+        parsed_data = parse_datetime(data)
+
+        # Ensure datetime fields are properly handled
+        datetime_fields = ["created_at", "last_query_time"]
+        for field_name in datetime_fields:
+            if field_name in parsed_data and parsed_data[field_name] is not None:
+                if isinstance(parsed_data[field_name], str):
+                    try:
+                        parsed_data[field_name] = datetime.fromisoformat(
+                            parsed_data[field_name].replace("Z", "+00:00")
+                        )
+                    except (ValueError, AttributeError):
+                        # Fallback: try using dateutil if available, otherwise keep as string
+                        try:
+                            from dateutil import parser
+
+                            parsed_data[field_name] = parser.parse(
+                                parsed_data[field_name]
+                            )
+                        except (ImportError, ValueError):
+                            logger.warning(
+                                f"Could not parse datetime field {field_name}: {parsed_data[field_name]}"
+                            )
+
+        return cls(**parsed_data)
 
 
 class SessionManager:
@@ -85,8 +165,7 @@ class SessionManager:
         import uuid
 
         session = ResearchSession(
-            session_id=str(uuid.uuid4()),
-            created_at=datetime.now()
+            session_id=str(uuid.uuid4()), created_at=datetime.now()
         )
 
         st.session_state[cls.SESSION_KEY] = session
@@ -157,8 +236,14 @@ class SessionManager:
         logger.info("Reset session to initial state")
 
     @classmethod
-    def set_query_params(cls, query: str, max_papers: int, paper_sources: List[str],
-                        date_range: tuple, use_date_filter: bool):
+    def set_query_params(
+        cls,
+        query: str,
+        max_papers: int,
+        paper_sources: List[str],
+        date_range: tuple,
+        use_date_filter: bool,
+    ):
         """
         Update query parameters in session.
 
@@ -180,8 +265,13 @@ class SessionManager:
         cls.update(session)
 
     @classmethod
-    def set_results(cls, synthesis: str, papers: List[Dict], decisions: List[Dict],
-                   metrics: Dict[str, Any]):
+    def set_results(
+        cls,
+        synthesis: str,
+        papers: List[Dict],
+        decisions: List[Dict],
+        metrics: Dict[str, Any],
+    ):
         """
         Update research results in session.
 
@@ -206,7 +296,9 @@ class SessionManager:
         session.results_visible = True
 
         cls.update(session)
-        logger.info(f"Updated results for session: {session.session_id} (query #{session.query_count})")
+        logger.info(
+            f"Updated results for session: {session.session_id} (query #{session.query_count})"
+        )
 
     @classmethod
     def toggle_section(cls, section: str):
@@ -243,9 +335,11 @@ class SessionManager:
             "session_id": session.session_id,
             "created_at": session.created_at.isoformat(),
             "query_count": session.query_count,
-            "last_query": session.last_query_time.isoformat() if session.last_query_time else None,
+            "last_query": session.last_query_time.isoformat()
+            if session.last_query_time
+            else None,
             "current_query": session.query,
             "papers_count": len(session.papers),
             "decisions_count": len(session.decisions),
-            "cache_entries": len(session.result_cache)
+            "cache_entries": len(session.result_cache),
         }

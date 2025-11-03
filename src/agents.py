@@ -26,6 +26,13 @@ from config import PaperSourceConfig
 from progress_tracker import ProgressTracker, Stage
 from query_expansion import expand_search_queries
 
+# Optional import for boolean search
+try:
+    from boolean_search import parse_boolean_query, expand_boolean_query
+    BOOLEAN_SEARCH_AVAILABLE = True
+except ImportError:
+    BOOLEAN_SEARCH_AVAILABLE = False
+
 # Optional imports for caching and metrics
 try:
     from cache import get_cache, PaperMetadataCache, SynthesisCache
@@ -35,6 +42,13 @@ try:
 except ImportError:
     CACHE_AVAILABLE = False
     METRICS_AVAILABLE = False
+
+# Optional import for input sanitization with fallback
+try:
+    from input_sanitization import ValidationError
+except ImportError:
+    # Fallback if input_sanitization not available
+    ValidationError = ValueError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -207,15 +221,29 @@ class ScoutAgent:
         """
         logger.info(f"🔍 Scout Agent: Searching for '{query}'")
         
-        # Step 0: Query Expansion (optional)
+        # Step 0: Check for boolean operators and parse if present
         search_queries = [query]
-        if use_query_expansion and os.getenv("ENABLE_QUERY_EXPANSION", "true").lower() == "true":
+        boolean_parsed = None
+        
+        if BOOLEAN_SEARCH_AVAILABLE:
             try:
-                expanded = await expand_search_queries(query, self.embedding_client, max_expansions=2)
-                search_queries = expanded
-                logger.info(f"Query expanded to {len(search_queries)} variations: {search_queries}")
+                boolean_parsed = parse_boolean_query(query)
+                if boolean_parsed.get("type") == "boolean":
+                    # Expand boolean query into multiple search queries
+                    search_queries = expand_boolean_query(boolean_parsed)
+                    logger.info(f"Boolean query detected, expanded to {len(search_queries)} queries: {search_queries}")
             except Exception as e:
-                logger.warning(f"Query expansion failed: {e}, using original query")
+                logger.warning(f"Boolean query parsing failed: {e}, using original query")
+        
+        # Step 0.5: Query Expansion (optional, if not boolean)
+        if boolean_parsed is None or boolean_parsed.get("type") != "boolean":
+            if use_query_expansion and os.getenv("ENABLE_QUERY_EXPANSION", "true").lower() == "true":
+                try:
+                    expanded = await expand_search_queries(query, self.embedding_client, max_expansions=2)
+                    search_queries = expanded
+                    logger.info(f"Query expanded to {len(search_queries)} variations: {search_queries}")
+                except Exception as e:
+                    logger.warning(f"Query expansion failed: {e}, using original query")
 
         # Step 1: Embed the research query (use original for embedding)
         query_embedding = await self.embedding_client.embed(
@@ -1624,6 +1652,134 @@ Response:
         return decision
 
 
+# Demo mode support
+def _generate_demo_result(query: str, max_papers: int = 10) -> Dict[str, Any]:
+    """
+    Generate pre-cached demo results for reliable demonstration
+    Used when DEMO_MODE=true or NIMs are unavailable
+    """
+    import time
+    time.sleep(0.5)  # Simulate minimal processing time
+    
+    # Sample demo data
+    demo_papers = [
+        {
+            "id": "arxiv-demo-001",
+            "title": f"Deep Learning Approaches for {query.split()[0] if query else 'Research'}",
+            "authors": ["John Smith", "Jane Doe", "Alice Johnson"],
+            "abstract": "This paper presents a comprehensive analysis of the latest developments in the field.",
+            "url": "https://arxiv.org/abs/1234.5678",
+            "source": "arxiv"
+        },
+        {
+            "id": "pubmed-demo-002",
+            "title": f"Novel Methods in {query.split()[-1] if len(query.split()) > 1 else 'Research'}",
+            "authors": ["Robert Chen", "Emily Williams"],
+            "abstract": "We investigate advanced techniques with significant improvements over baseline methods.",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/12345678",
+            "source": "pubmed"
+        },
+        {
+            "id": "arxiv-demo-003",
+            "title": f"Recent Advances in {query}",
+            "authors": ["Michael Brown", "Sarah Davis", "David Wilson"],
+            "abstract": "This study demonstrates promising results with practical applications.",
+            "url": "https://arxiv.org/abs/2345.6789",
+            "source": "arxiv"
+        }
+    ]
+    
+    # Limit to max_papers
+    demo_papers = demo_papers[:min(max_papers, len(demo_papers))]
+    
+    return {
+        "query": query,
+        "papers_analyzed": len(demo_papers),
+        "papers": demo_papers,
+        "common_themes": [
+            f"Key themes in {query}",
+            "Emerging methodologies and techniques",
+            "Applications and real-world impact"
+        ],
+        "contradictions": [
+            {
+                "paper1": demo_papers[0]["title"],
+                "claim1": "Claims superior performance",
+                "paper2": demo_papers[1]["title"],
+                "claim2": "Shows different results",
+                "conflict": "Methodological differences lead to varying conclusions"
+            }
+        ],
+        "research_gaps": [
+            "Limited longitudinal studies",
+            "Gap in cross-domain applications",
+            "Need for standardized evaluation metrics"
+        ],
+        "recommendations": [
+            "Further research needed in domain adaptation",
+            "Consider multi-modal approaches",
+            "Investigate scalability aspects"
+        ],
+        "decisions": [
+            {
+                "timestamp": datetime.now().isoformat(),
+                "agent": "Scout",
+                "decision_type": "DEMO_MODE",
+                "decision": f"Using pre-cached demo results for '{query}'",
+                "reasoning": "Demo mode enabled - returning sample data for reliable demonstration",
+                "nim_used": "Demo Mode (No NIM)",
+                "metadata": {"demo": True}
+            },
+            {
+                "timestamp": datetime.now().isoformat(),
+                "agent": "Coordinator",
+                "decision_type": "DEMO_MODE",
+                "decision": "Synthesis complete",
+                "reasoning": "Demo results include comprehensive analysis",
+                "nim_used": "Demo Mode (No NIM)",
+                "metadata": {"demo": True}
+            }
+        ],
+        "synthesis_complete": True,
+        "progress": {
+            "current_stage": "COMPLETE",
+            "time_elapsed": 0.5,
+            "papers_found": len(demo_papers),
+            "papers_analyzed": len(demo_papers),
+            "papers_total": len(demo_papers)
+        },
+        "processing_time_seconds": 0.5,
+        "analyses": [
+            {
+                "paper_id": p["id"],
+                "research_question": f"What are the key findings in {p['title']}?",
+                "methodology": "Systematic analysis approach",
+                "key_findings": ["Significant improvements demonstrated", "Practical applications identified"],
+                "limitations": ["Limited dataset", "Requires further validation"],
+                "confidence": 0.85,
+                "metadata": {}
+            }
+            for p in demo_papers
+        ],
+        "quality_scores": [
+            {
+                "paper_id": p["id"],
+                "overall_score": 0.8,
+                "methodology_score": 0.85,
+                "statistical_score": 0.75,
+                "reproducibility_score": 0.8,
+                "venue_score": 0.85,
+                "sample_size_score": 0.75,
+                "confidence_level": "high",
+                "issues": [],
+                "strengths": ["Well-structured methodology", "Clear presentation"]
+            }
+            for p in demo_papers
+        ],
+        "demo_mode": True
+    }
+
+
 # Main orchestration
 class ResearchOpsAgent:
     """
@@ -1663,43 +1819,40 @@ class ResearchOpsAgent:
             logger.warning(f"Metrics initialization failed: {e}")
             self.metrics = None
 
-    async def run(self, query: str, max_papers: int = 10) -> Dict[str, Any]:
+    def _validate_input(self, query: str, max_papers: int) -> tuple[str, int]:
         """
-        Execute full research synthesis workflow
-
-        This demonstrates TRUE AGENTIC BEHAVIOR:
-        - Autonomous search decisions
-        - Parallel task execution
-        - Self-evaluation and refinement
-        - Dynamic strategy adjustment
+        Validate and sanitize input parameters
+        
+        Returns:
+            (sanitized_query, validated_max_papers)
+        
+        Raises:
+            ValueError: If validation fails
         """
-        # VALIDATE INPUT
         try:
-            if BaseModel != object:  # Only validate if pydantic is available
-                validated = ResearchQuery(query=query, max_papers=max_papers)
-                query = validated.query
-                max_papers = validated.max_papers
+            from input_sanitization import sanitize_research_query, validate_max_papers
+            sanitized_query = sanitize_research_query(query)
+            validated_max_papers = validate_max_papers(max_papers)
+            return sanitized_query, validated_max_papers
+        except ValidationError as e:
+            logger.error(f"Input validation failed: {e}")
+            raise ValueError(str(e))
         except Exception as e:
             logger.error(f"Invalid input: {e}")
-            return {
-                "error": "Invalid input",
-                "message": str(e),
-                "papers_analyzed": 0,
-                "decisions": [],
-                "common_themes": [],
-                "contradictions": [],
-                "research_gaps": []
-            }
+            raise ValueError(f"Invalid input: {str(e)}")
+
+    async def _execute_search_phase(self, query: str, max_papers: int) -> List[Any]:
+        """
+        Execute search phase with autonomous expansion
         
-        logger.info(f"\n{'='*60}")
-        logger.info(f"🚀 ResearchOps Agent: Starting synthesis for '{query}'")
-        logger.info(f"{'='*60}\n")
-
-        # Start progress tracking
-        self.progress_tracker.start()
-        self.progress_tracker.set_stage(Stage.INITIALIZING, "Embedding NIM")
-
-        # Phase 1: Initial search
+        Responsibilities:
+        - Initial paper search
+        - Autonomous decision to search for more papers
+        - Consolidate search-related decisions
+        
+        Returns:
+            List of Paper objects
+        """
         self.progress_tracker.set_stage(Stage.SEARCHING, "Embedding NIM")
         papers = await self.scout.search(query, max_papers=max_papers)
         self.progress_tracker.set_papers_found(len(papers))
@@ -1709,7 +1862,7 @@ class ResearchOpsAgent:
         for decision in self.scout.decision_log.get_decisions():
             self.decision_log.decisions.append(decision)
 
-        # Phase 2: AUTONOMOUS DECISION - Do we need more papers?
+        # AUTONOMOUS DECISION - Do we need more papers?
         current_topics = [p.title for p in papers]
         if await self.coordinator.should_search_more(query, len(papers), current_topics):
             logger.info("🔄 Agent decided to search for more papers")
@@ -1719,23 +1872,39 @@ class ResearchOpsAgent:
             )
             papers.extend(additional_papers)
         
-        # Consolidate coordinator decisions
+        # Consolidate coordinator decisions from search phase
         for decision in self.coordinator.decision_log.get_decisions():
-            self.decision_log.decisions.append(decision)
+            if decision not in self.decision_log.decisions:
+                self.decision_log.decisions.append(decision)
+        
+        return papers
 
-        # Phase 3: Parallel analysis with quality assessment
+    async def _execute_analysis_phase(self, papers: List[Any]) -> tuple[List[Any], List[Any]]:
+        """
+        Execute parallel analysis phase with quality assessment
+        
+        Responsibilities:
+        - Parallel paper analysis
+        - Quality assessment for each paper
+        - Error handling for quality assessment
+        
+        Returns:
+            (analyses, quality_scores)
+        """
         logger.info(f"📊 Analyzing {len(papers)} papers in parallel...")
         self.progress_tracker.set_stage(Stage.ANALYZING, "Reasoning NIM")
+        
+        # Parallel analysis
         analyses = await asyncio.gather(*[
             self.analyst.analyze(paper)
             for paper in papers
         ])
         self.progress_tracker.set_papers_analyzed(len(analyses))
         
-        # Assess quality for each paper
+        # Assess quality for each paper (with error handling)
+        quality_scores = []
         try:
             from quality_assessment import assess_paper_quality
-            quality_scores = []
             for paper, analysis in zip(papers, analyses):
                 paper_data = {
                     "id": paper.id,
@@ -1757,16 +1926,46 @@ class ResearchOpsAgent:
         except Exception as e:
             logger.warning(f"Quality assessment failed: {e}")
             quality_scores = []
+        
+        return analyses, quality_scores
 
-        # Phase 4: Synthesis
+    async def _execute_synthesis_phase(self, analyses: List[Any]) -> Any:
+        """
+        Execute synthesis phase
+        
+        Responsibilities:
+        - Synthesize analyses into themes, contradictions, gaps
+        - Consolidate synthesizer decisions
+        
+        Returns:
+            Synthesis object
+        """
         self.progress_tracker.set_stage(Stage.SYNTHESIZING, "Both NIMs")
         synthesis = await self.synthesizer.synthesize(analyses)
         
         # Consolidate synthesizer decisions
         for decision in self.synthesizer.decision_log.get_decisions():
             self.decision_log.decisions.append(decision)
+        
+        return synthesis
 
-        # Phase 5: AUTONOMOUS DECISION - Is synthesis complete?
+    async def _execute_refinement_phase(
+        self, 
+        synthesis: Any, 
+        analyses: List[Any]
+    ) -> tuple[Any, bool]:
+        """
+        Execute refinement loop until quality threshold is met
+        
+        Responsibilities:
+        - Autonomous refinement iterations
+        - Quality evaluation after each iteration
+        - Consolidate coordinator decisions
+        
+        Returns:
+            (refined_synthesis, synthesis_complete)
+        """
+        # AUTONOMOUS DECISION - Is synthesis complete?
         synthesis_complete = await self.coordinator.is_synthesis_complete(synthesis)
         
         # REFINEMENT LOOP
@@ -1795,12 +1994,31 @@ class ResearchOpsAgent:
         for decision in self.coordinator.decision_log.get_decisions():
             if decision not in self.decision_log.decisions:
                 self.decision_log.decisions.append(decision)
-
-        # Complete progress tracking
-        self.progress_tracker.complete()
         
-        # Phase 6: Generate final report
+        return synthesis, synthesis_complete
+
+    def _generate_report(
+        self,
+        query: str,
+        papers: List[Any],
+        analyses: List[Any],
+        synthesis: Any,
+        quality_scores: List[Any],
+        synthesis_complete: bool
+    ) -> Dict[str, Any]:
+        """
+        Generate final report from all phases
+        
+        Responsibilities:
+        - Compile results from all phases
+        - Format data for API response
+        - Include all decision logs and progress information
+        
+        Returns:
+            Complete report dictionary
+        """
         progress_info = self.progress_tracker.get_stage_info()
+        
         report = {
             "query": query,
             "papers_analyzed": len(papers),
@@ -1819,9 +2037,9 @@ class ResearchOpsAgent:
             "contradictions": synthesis.contradictions,
             "research_gaps": synthesis.gaps,
             "recommendations": synthesis.recommendations,
-            "decisions": self.decision_log.get_decisions(),  # INCLUDE FOR UI
+            "decisions": self.decision_log.get_decisions(),
             "synthesis_complete": synthesis_complete,
-            "progress": progress_info,  # Add progress information
+            "progress": progress_info,
             "processing_time_seconds": progress_info.get("time_elapsed", 0),
             "analyses": [
                 {
@@ -1831,7 +2049,7 @@ class ResearchOpsAgent:
                     "key_findings": a.key_findings,
                     "limitations": a.limitations,
                     "confidence": a.confidence,
-                    "metadata": a.metadata or {}  # Enhanced extraction data
+                    "metadata": a.metadata or {}
                 }
                 for a in analyses
             ],
@@ -1849,8 +2067,76 @@ class ResearchOpsAgent:
                     "strengths": qs.strengths
                 }
                 for i, qs in enumerate(quality_scores)
-            ] if 'quality_scores' in locals() and quality_scores else []
+            ] if quality_scores else []
         }
+        
+        return report
+
+    async def run(self, query: str, max_papers: int = 10) -> Dict[str, Any]:
+        """
+        Orchestrate full research synthesis workflow
+        
+        This method coordinates all phases:
+        1. Input validation
+        2. Search phase (with autonomous expansion)
+        3. Analysis phase (parallel processing)
+        4. Synthesis phase
+        5. Refinement phase (iterative improvement)
+        6. Report generation
+        
+        This demonstrates TRUE AGENTIC BEHAVIOR:
+        - Autonomous search decisions
+        - Parallel task execution
+        - Self-evaluation and refinement
+        - Dynamic strategy adjustment
+        """
+        # Check for demo mode
+        demo_mode = os.getenv("DEMO_MODE", "false").lower() == "true"
+        if demo_mode:
+            logger.warning("⚠️ Running in DEMO MODE with pre-cached results")
+            return _generate_demo_result(query, max_papers)
+        
+        # Phase 0: Validate input
+        try:
+            query, max_papers = self._validate_input(query, max_papers)
+        except ValueError as e:
+            return {
+                "error": "Invalid input",
+                "message": str(e),
+                "papers_analyzed": 0,
+                "decisions": [],
+                "common_themes": [],
+                "contradictions": [],
+                "research_gaps": []
+            }
+        
+        logger.info(f"\n{'='*60}")
+        logger.info(f"🚀 ResearchOps Agent: Starting synthesis for '{query}'")
+        logger.info(f"{'='*60}\n")
+
+        # Initialize progress tracking
+        self.progress_tracker.start()
+        self.progress_tracker.set_stage(Stage.INITIALIZING, "Embedding NIM")
+
+        # Phase 1: Search phase
+        papers = await self._execute_search_phase(query, max_papers)
+        
+        # Phase 2: Analysis phase
+        analyses, quality_scores = await self._execute_analysis_phase(papers)
+        
+        # Phase 3: Synthesis phase
+        synthesis = await self._execute_synthesis_phase(analyses)
+        
+        # Phase 4: Refinement phase
+        synthesis, synthesis_complete = await self._execute_refinement_phase(synthesis, analyses)
+
+        # Complete progress tracking
+        self.progress_tracker.complete()
+        
+        # Phase 5: Generate report
+        report = self._generate_report(
+            query, papers, analyses, synthesis, quality_scores, synthesis_complete
+        )
 
         logger.info(f"\n{'='*60}")
         logger.info(f"✅ ResearchOps Agent: Synthesis complete!")

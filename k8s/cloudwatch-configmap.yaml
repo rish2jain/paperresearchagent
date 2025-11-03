@@ -1,0 +1,77 @@
+---
+# CloudWatch Agent Configuration
+# Enables CloudWatch Container Insights for monitoring
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudwatch-agent-config
+  namespace: research-ops
+data:
+  # CloudWatch Agent configuration for Container Insights
+  cwagentconfig.json: |
+    {
+      "agent": {
+        "region": "us-east-2"
+      },
+      "logs": {
+        "metrics_collected": {
+          "kubernetes": {
+            "cluster_name": "research-ops-cluster",
+            "metrics_collection_interval": 60
+          }
+        }
+      },
+      "metrics": {
+        "namespace": "ContainerInsights",
+        "metrics_collected": {
+          "cpu": {
+            "measurement": [
+              "cpu_usage_idle",
+              "cpu_usage_iowait",
+              "cpu_usage_user",
+              "cpu_usage_system"
+            ],
+            "totalcpu": false
+          },
+          "disk": {
+            "measurement": [
+              "used_percent"
+            ],
+            "resources": [
+              "*"
+            ]
+          },
+          "diskio": {
+            "measurement": [
+              "io_time",
+              "write_bytes",
+              "read_bytes",
+              "writes",
+              "reads"
+            ],
+            "resources": [
+              "*"
+            ]
+          },
+          "mem": {
+            "measurement": [
+              "mem_used_percent"
+            ]
+          },
+          "netstat": {
+            "measurement": [
+              "tcp_established",
+              "tcp_time_wait"
+            ]
+          },
+          "processes": {
+            "measurement": [
+              "running",
+              "sleeping",
+              "dead"
+            ]
+          }
+        }
+      }
+    }
+

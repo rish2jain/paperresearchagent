@@ -1,237 +1,128 @@
 # 🚀 EKS Deployment Status
 
-**Last Updated:** 2025-11-02
+## ✅ Completed
 
----
+1. **AWS Quota Approved**: 16 vCPUs for On-Demand G instances
+2. **EKS Cluster**: ACTIVE (`research-ops-cluster` in `us-east-2`)
+3. **Nodegroup Created**: `ng-gpu-prod` with 2x g5.2xlarge GPU nodes (both ready)
+4. **Namespace**: `research-ops` created
+5. **Secrets**: NVIDIA NGC and AWS credentials applied
+6. **StorageClass Fix**: Changed PVCs from `gp3` → `gp2` (EKS default)
+7. **All Deployments Created**: All Kubernetes manifests applied
+8. **✅ Container Images Built and Pushed to ECR** (Option A completed):
+   - ECR Registry: `294337990007.dkr.ecr.us-east-2.amazonaws.com`
+   - Orchestrator: `research-ops/orchestrator:latest`
+   - UI: `research-ops/ui:latest`
+   - Deployment manifests updated and re-applied
+   - Script available: `scripts/deploy_to_ecr.sh`
 
-## ✅ Current Status
+## ⚠️ Current Issues
 
-### Cluster Control Plane: ✅ **CREATED SUCCESSFULLY**
-
-- **Cluster Name:** research-ops-cluster
-- **Region:** us-east-2 (Ohio)
-- **Status:** ACTIVE
-- **Kubernetes Version:** 1.28
-
-### Nodegroup: ❌ **CREATION FAILED**
-
-**Error:** Account validation pending for us-east-2 region
-
-**Error Message:**
-```
-PendingVerification - Your request for accessing resources in this region is being validated, 
-and you will not be able to launch additional resources in this region until the validation is complete.
-```
-
-**CloudFormation Status:** `ROLLBACK_COMPLETE`
-
----
-
-## 🔧 Next Steps
-
-### Option 1: Wait for AWS Validation (Recommended)
-
-AWS is validating your account's access to us-east-2. This typically takes:
-- **Minimum:** A few minutes
-- **Maximum:** Up to 4 hours
-- **Usual:** 15-30 minutes
-
-**Action:** Wait for AWS email confirmation, then retry nodegroup creation.
-
-**Retry Command:**
-```bash
-cd /Users/rish2jain/Documents/Hackathons/research-ops-agent/k8s
-NGC_API_KEY=$(grep "NGC_API_KEY" secrets.yaml | head -1 | sed 's/.*NGC_API_KEY: "\(.*\)"/\1/')
-export NGC_API_KEY
-
-# Create nodegroup manually
-eksctl create nodegroup \
-  --cluster research-ops-cluster \
-  --region us-east-2 \
-  --name ng-28c203b1 \
-  --node-type g5.2xlarge \
-  --nodes 2 \
-  --nodes-min 1 \
-  --nodes-max 3 \
-  --managed
-
-# Then continue with deployment
-kubectl apply -f namespace.yaml
-kubectl apply -f secrets.yaml
-# ... etc
-```
-
----
-
-### Option 2: Use Different Region (Fastest)
-
-Since us-east-2 requires validation, try a region that might already be validated:
-
-**Option 2a: Try us-west-2 (Oregon)**
-```bash
-# Update region to us-west-2
-# Edit secrets.yaml: AWS_DEFAULT_REGION: "us-west-2"
-# Edit deploy.sh: Change all us-east-2 to us-west-2
-
-# Delete existing cluster first
-eksctl delete cluster --name research-ops-cluster --region us-east-2
-
-# Retry deployment
-cd k8s
-NGC_API_KEY=$(grep "NGC_API_KEY" secrets.yaml | head -1 | sed 's/.*NGC_API_KEY: "\(.*\)"/\1/')
-export NGC_API_KEY
-./deploy.sh
-```
-
-**Option 2b: Return to us-east-1 (after freeing Elastic IPs)**
-- If you can release unused Elastic IPs, use us-east-1
-
----
-
-### Option 3: Clean Up and Retry Later
-
-If validation is taking too long:
+### 1. Alternative: Use Docker Hub (If needed in future)
 
 ```bash
-# Clean up existing cluster
-eksctl delete cluster --name research-ops-cluster --region us-east-2
+# 1. Login to Docker Hub
+docker login
 
-# Wait for AWS validation email (usually within 30 min)
-# Then retry deployment
+# 2. Build and push
+docker build -f Dockerfile.orchestrator -t YOUR_DOCKERHUB_USER/research-ops-agent:latest .
+docker push YOUR_DOCKERHUB_USER/research-ops-agent:latest
+
+docker build -f Dockerfile.ui -t YOUR_DOCKERHUB_USER/research-ops-ui:latest .
+docker push YOUR_DOCKERHUB_USER/research-ops-ui:latest
+
+# 3. Update manifests (replace YOUR_DOCKERHUB_USER)
+sed -i.bak "s|YOUR_REGISTRY/research-ops-agent:latest|YOUR_DOCKERHUB_USER/research-ops-agent:latest|g" \
+  k8s/agent-orchestrator-deployment.yaml
+
+sed -i.bak "s|YOUR_REGISTRY/research-ops-ui:latest|YOUR_DOCKERHUB_USER/research-ops-ui:latest|g" \
+  k8s/web-ui-deployment.yaml
+
+# 4. Re-apply
+kubectl apply -f k8s/agent-orchestrator-deployment.yaml
+kubectl apply -f k8s/web-ui-deployment.yaml
 ```
 
----
+### 2. PVC Status (In Progress)
 
-## 📋 What Was Created
+**Current Status**: All 3 PVCs are `Pending`
 
-### ✅ Created Successfully:
-- EKS Cluster Control Plane (research-ops-cluster)
-- VPC, Subnets, Internet Gateway
-- Security Groups
-- IAM Roles
-- EKS Addons (kube-proxy, coredns, vpc-cni)
-- CloudFormation Stack: `eksctl-research-ops-cluster-cluster`
+- `reasoning-nim-cache-pvc`: Node selected (`ip-192-168-95-23`), waiting for volume provisioning
+- `qdrant-pvc`: Node selected (`ip-192-168-51-0`), waiting for volume provisioning
+- `embedding-nim-cache-pvc`: No node selected yet
 
-### ❌ Failed to Create:
-- Managed Nodegroup (GPU nodes)
-- CloudFormation Stack: `eksctl-research-ops-cluster-nodegroup-ng-28c203b1` (rolled back)
+**Issue**: Pods can't be scheduled because PVCs are unbound, but PVCs with `WaitForFirstConsumer` binding mode require pods to be scheduled first. This creates a scheduling deadlock.
 
----
+**Monitoring Tools Available**:
 
-## 🎯 Recommended Action Plan
+```bash
+# Detailed PVC status
+scripts/monitor_pvcs.sh
 
-### Immediate (Next 30 minutes):
+# Continuous watch (updates every 5 seconds)
+scripts/watch_pvcs.sh
 
-1. **Check Email for AWS Validation**
-   - AWS will email when us-east-2 validation completes
-   - Usually happens within 15-30 minutes
+# Manual checks
+kubectl get pvc -n research-ops
+kubectl describe pvc -n research-ops
+kubectl get events -n research-ops --sort-by='.lastTimestamp'
+```
 
-2. **Once Validated, Retry Nodegroup:**
+**Expected Resolution**: With `WaitForFirstConsumer` mode, Kubernetes should be able to schedule pods to nodes first, then create volumes. The scheduler errors suggest a configuration issue or the need for the EBS CSI driver addon.
+
+## 📊 Current Pod Status
+
+```bash
+kubectl get pods -n research-ops
+```
+
+Expected statuses once PVCs are bound:
+
+- `reasoning-nim`: Should start after PVC is bound
+- `embedding-nim`: Should start after PVC is bound
+- `qdrant`: Should start after PVC is bound
+- `agent-orchestrator`: Should start now (ECR image available)
+- `web-ui`: Should start now (ECR image available)
+
+## ✅ What's Working
+
+- ✅ 2 GPU nodes ready with NVIDIA device plugin
+- ✅ All services defined in Kubernetes
+- ✅ Secrets configured
+- ✅ Storage classes fixed
+- ✅ Ingress configured (needs ingress controller)
+
+## 🔄 Next Steps
+
+1. **Wait for PVCs to bind** (usually takes 1-2 minutes)
+2. **Verify all pods are running**:
    ```bash
-   cd /Users/rish2jain/Documents/Hackathons/research-ops-agent/k8s
-   NGC_API_KEY=$(grep "NGC_API_KEY" secrets.yaml | head -1 | sed 's/.*NGC_API_KEY: "\(.*\)"/\1/')
-   export NGC_API_KEY
-   
-   # Create nodegroup
-   eksctl create nodegroup \
-     --cluster research-ops-cluster \
-     --region us-east-2 \
-     --name ng-gpu-nodes \
-     --node-type g5.2xlarge \
-     --nodes 2 \
-     --nodes-min 1 \
-     --nodes-max 3 \
-     --managed
-   
-   # Then continue deployment
-   ./deploy.sh  # It will detect existing cluster and skip cluster creation
+   kubectl get pods -n research-ops -w
+   ```
+3. **Check service endpoints**:
+   ```bash
+   kubectl get svc -n research-ops
+   kubectl get ingress -n research-ops
    ```
 
-### Alternative (If in hurry):
+## 📝 Quick Commands
 
-1. **Switch to us-west-2:**
-   ```bash
-   # Edit secrets.yaml and deploy.sh to use us-west-2
-   # Delete existing cluster
-   eksctl delete cluster --name research-ops-cluster --region us-east-2
-   
-   # Update region in files
-   # Retry deployment
-   ```
-
----
-
-## 🔍 Verification Commands
-
-### Check Cluster Status:
 ```bash
-aws eks describe-cluster --name research-ops-cluster --region us-east-2 \
-  --query 'cluster.{Name:name,Status:status,Version:version,Endpoint:endpoint}'
+# Check pod status
+kubectl get pods -n research-ops -o wide
+
+# Check PVC status
+kubectl get pvc -n research-ops
+
+# View pod logs
+kubectl logs -f deployment/reasoning-nim -n research-ops
+kubectl logs -f deployment/embedding-nim -n research-ops
+kubectl logs -f deployment/agent-orchestrator -n research-ops
+kubectl logs -f deployment/web-ui -n research-ops
+
+# Check events
+kubectl get events -n research-ops --sort-by='.lastTimestamp'
+
+# Describe failing pod
+kubectl describe pod <pod-name> -n research-ops
 ```
-
-### Check Nodegroup Status:
-```bash
-aws eks list-nodegroups --cluster-name research-ops-cluster --region us-east-2
-```
-
-### Check CloudFormation Stacks:
-```bash
-aws cloudformation describe-stacks --region us-east-2 \
-  --query 'Stacks[?contains(StackName, `research-ops`)].{Name:StackName,Status:StackStatus}'
-```
-
-### Check GPU Instance Availability:
-```bash
-aws ec2 describe-instance-type-offerings \
-  --location-type availability-zone \
-  --filters "Name=instance-type,Values=g5.2xlarge" \
-  --region us-east-2
-```
-
----
-
-## 📊 Current Resources
-
-### Active Resources:
-- ✅ EKS Cluster: `research-ops-cluster` (ACTIVE)
-- ✅ VPC and Networking (in us-east-2)
-- ✅ IAM Roles and Policies
-
-### Pending:
-- ⏳ Nodegroup creation (waiting for AWS validation)
-
----
-
-## 💰 Cost Impact
-
-### Current Costs:
-- EKS Cluster Control Plane: ~$0.10/hour (running)
-- VPC, NAT Gateway: ~$0.045/hour + data transfer
-- **Total:** ~$0.15/hour while waiting
-
-### Once Nodegroup Created:
-- 2x g5.2xlarge: ~$1.50/hour (~$0.75 each)
-- **Total:** ~$1.65/hour
-
-**Recommendation:** Proceed quickly or clean up if validation takes > 1 hour.
-
----
-
-## ✅ Next Steps Summary
-
-1. **Wait for AWS validation email** (15-30 min usually)
-2. **Retry nodegroup creation** using command above
-3. **Continue with deployment** using deploy.sh
-4. **Verify all pods running**
-5. **Test end-to-end**
-
-**OR**
-
-1. **Switch to different region** (us-west-2)
-2. **Retry deployment** from scratch
-3. **Faster if validation is blocking**
-
----
-
-**Current Status:** Cluster ready, waiting for AWS validation to complete nodegroup creation.
-

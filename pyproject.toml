@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "research-ops-agent"
+version = "0.1.0"
+description = "Multi-agent AI system for automated literature review synthesis using NVIDIA NIMs"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "ResearchOps Team"}
+]
+keywords = ["ai", "research", "literature-review", "nim", "multi-agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "aiohttp>=3.9.1",
+    "aiodns>=3.1.1",
+    "pydantic>=2.5.0",
+    "tenacity>=8.2.3",
+    "numpy>=1.26.2",
+    "scikit-learn>=1.3.2",
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "python-multipart>=0.0.6",
+    "streamlit>=1.29.0",
+    "arxiv>=1.4.8",
+    "python-docx>=1.1.0",
+    "reportlab>=4.0.7",
+    "openpyxl>=3.1.2",
+    "redis>=5.0.1",
+    "prometheus-client>=0.19.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-asyncio>=0.21.1",
+    "async-timeout>=4.0.3",
+    "black",
+    "flake8",
+    "mypy",
+]
+
+[project.urls]
+Homepage = "https://github.com/rish2jain/paperresearchagent"
+Documentation = "https://github.com/rish2jain/paperresearchagent/tree/main/docs"
+Repository = "https://github.com/rish2jain/paperresearchagent"
+Issues = "https://github.com/rish2jain/paperresearchagent/issues"
+
+[tool.setuptools]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+namespaces = false
+
+[tool.setuptools.package-data]
+"*" = ["*.py", "*.yaml", "*.yml"]
+
+[tool.black]
+line-length = 100
+target-version = ['py39', 'py310', 'py311']
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "src"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+

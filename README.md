@@ -524,10 +524,26 @@ eksctl delete cluster --name research-ops-cluster --region us-east-1
 
 ## 📚 Documentation
 
+**See [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md) for a complete guide to all documentation.**
+
+### Quick Reference
+
+- [Quick Start Guide](QUICK_START.md) - 3-day timeline and essential commands
+- [Status & Features](STATUS.md) - Current project status and capabilities
+- [Hackathon Setup Guide](HACKATHON_SETUP_GUIDE.md) - Complete setup and submission guide
+- [Deployment Guide](DEPLOYMENT.md) - Kubernetes deployment instructions
+- [Testing Guide](TESTING_GUIDE.md) - Testing with mock vs live services
+- [Docker Testing](DOCKER_TESTING.md) - Docker-based testing guide
+
+### Technical Documentation
+
 - [Architecture Diagrams](docs/Architecture_Diagrams.md) - Complete system diagrams
 - [EKS vs SageMaker](docs/EKS_vs_SageMaker_Comparison.md) - Deployment comparison
-- [API Documentation](docs/API.md) - REST API reference
-- [Agent Design](docs/Agents.md) - Multi-agent architecture
+- [API Keys Setup](docs/API_KEYS_SETUP.md) - Configuration for data sources (7 sources)
+- [Paper Sources](docs/PAPER_SOURCES.md) - Academic database integration (7 sources)
+- [Troubleshooting](docs/TROUBLESHOOTING.md) - Common issues and solutions
+- [AWS Setup](docs/AWS_SETUP_GUIDE.md) - AWS credentials configuration
+- [Documentation Index](docs/README.md) - Complete docs directory guide
 
 ---
 

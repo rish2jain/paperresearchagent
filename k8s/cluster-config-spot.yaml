@@ -1,0 +1,99 @@
+---
+# EKS Cluster Configuration with Spot Instances
+# Cost optimization configuration for non-critical workloads
+apiVersion: eksctl.io/v1alpha5
+kind: ClusterConfig
+
+metadata:
+  name: research-ops-cluster
+  region: us-east-2
+  version: "1.28"
+
+iam:
+  withOIDC: true
+
+managedNodeGroups:
+  # GPU nodes for production workloads (on-demand)
+  - name: gpu-nodes-production
+    instanceType: g5.2xlarge
+    desiredCapacity: 2
+    minSize: 1
+    maxSize: 5
+    volumeSize: 100
+    volumeType: gp3
+    volumeEncrypted: true
+    labels:
+      workload-type: production
+      gpu: "true"
+    taints:
+      - key: workload-type
+        value: production
+        effect: NoSchedule
+    tags:
+      Environment: production
+      CostCenter: research-ops
+
+  # Spot instances for testing/development (60-70% cost savings)
+  - name: gpu-nodes-spot
+    instanceType: g5.2xlarge
+    desiredCapacity: 1
+    minSize: 0
+    maxSize: 3
+    volumeSize: 100
+    volumeType: gp3
+    volumeEncrypted: true
+    spot: true
+    spotInstancePools: 2  # Diversify across availability zones
+    labels:
+      workload-type: development
+      gpu: "true"
+    taints:
+      - key: workload-type
+        value: development
+        effect: NoSchedule
+    tags:
+      Environment: development
+      CostCenter: research-ops
+      SpotInstance: "true"
+    instanceTypes:
+      - g5.2xlarge
+      - g5.xlarge  # Fallback if spot unavailable
+      - g4dn.2xlarge  # Alternative GPU instance
+
+  # CPU-only spot instances for non-GPU workloads
+  - name: cpu-nodes-spot
+    instanceType: m5.2xlarge
+    desiredCapacity: 0
+    minSize: 0
+    maxSize: 5
+    volumeSize: 50
+    volumeType: gp3
+    volumeEncrypted: true
+    spot: true
+    spotInstancePools: 3
+    labels:
+      workload-type: cpu-only
+    taints:
+      - key: workload-type
+        value: cpu-only
+        effect: NoSchedule
+    tags:
+      Environment: development
+      CostCenter: research-ops
+      SpotInstance: "true"
+
+addons:
+  - name: vpc-cni
+    version: latest
+  - name: coredns
+    version: latest
+  - name: kube-proxy
+    version: latest
+  - name: aws-ebs-csi-driver
+    version: latest
+
+cloudWatch:
+  clusterLogging:
+    enableTypes: ["*"]
+    logRetentionInDays: 7
+

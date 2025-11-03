@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: orchestrator
-        image: YOUR_REGISTRY/research-ops-agent:latest
+        image: 294337990007.dkr.ecr.us-east-2.amazonaws.com/research-ops/orchestrator:latest
         imagePullPolicy: Always
 
         securityContext:
@@ -80,6 +80,14 @@ spec:
 
         - name: S3_BUCKET_NAME
           value: "research-ops-storage"
+
+        # Redis configuration for caching
+        - name: REDIS_URL
+          value: "redis://redis.research-ops.svc.cluster.local:6379/0"
+
+        # Enable embedding caching
+        - name: ENABLE_EMBEDDING_CACHE
+          value: "true"
 
         resources:
           requests:
