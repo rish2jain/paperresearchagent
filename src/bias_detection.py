@@ -7,6 +7,9 @@ from typing import List, Dict, Any, Optional
 from datetime import datetime
 from collections import Counter
 import re
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def detect_bias(papers: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -122,9 +125,6 @@ def _extract_year_from_paper(paper: Dict[str, Any]) -> Optional[int]:
                 return int(year_value)
         except (ValueError, TypeError) as e:
             # Log warning if we have context
-            import logging
-
-            logger = logging.getLogger(__name__)
             paper_id = paper.get("id", "unknown")
             paper_title = paper.get("title", "Unknown Title")[:50]
             logger.warning(

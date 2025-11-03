@@ -72,23 +72,23 @@ The maximum numb
 
 **Examples:**
 
-Example 1 (unknown):
-```unknown
+Example 1 (yaml):
+```yaml
 metadata.ownerReferences
 ```
 
-Example 2 (unknown):
-```unknown
+Example 2 (yaml):
+```yaml
 namespaceSelector
 ```
 
-Example 3 (unknown):
-```unknown
+Example 3 (text):
+```
 PolicyEndpoint
 ```
 
-Example 4 (unknown):
-```unknown
+Example 4 (text):
+```
 policyendpoints.networking.k8s.aws
 ```
 
@@ -151,22 +151,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -287,12 +287,12 @@ You can learn
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 eksctl utils describe-addon-versions --kubernetes-version 1.33 | grep AddonName
 ```
 
 Example 2 (unknown):
-```unknown
+```
 "AddonName": "aws-ebs-csi-driver",
                         "AddonName": "coredns",
                         "AddonName": "kube-proxy",
@@ -306,12 +306,12 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-```unknown
+```
 name-of-addon
 ```
 
 Example 4 (unknown):
-```unknown
+```
 eksctl utils describe-addon-versions --kubernetes-version 1.33 --name name-of-addon | grep AddonVersion
 ```
 
@@ -375,22 +375,22 @@ The URL of the OIDC identity provider that allows the API server to discover pub
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 clusterroles
 ```
 
 Example 2 (unknown):
-```unknown
+```
 rolebindings
 ```
 
 Example 3 (unknown):
-```unknown
+```
 clusterrolebindings
 ```
 
 Example 4 (unknown):
-```unknown
+```
 https://server.example.org
 ```
 
@@ -457,12 +457,12 @@ Amazon EKS uses KMS v2 to implement default envelope encryption for all API data
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 eks:kms-storage-migrator
 ```
 
 Example 2 (unknown):
-```unknown
+```
 1234abcd-12ab-34cd-56ef-1234567890ab
 ```
 
@@ -574,22 +574,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -636,7 +636,7 @@ Run the following command:
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 aws eks update-cluster-config \
 --name <cluster-name> \
 --upgrade-policy supportType=EXTENDED
@@ -713,22 +713,22 @@ If you are
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 LoadBalancer
 ```
 
 Example 2 (unknown):
-```unknown
+```
 LoadBalancer
 ```
 
 Example 3 (unknown):
-```unknown
+```
 type: LoadBalancer
 ```
 
 Example 4 (unknown):
-```unknown
+```
 spec.loadBalancerClass
 ```
 
@@ -818,22 +818,22 @@ EKS Auto Mode includes the Amazon EKS node monitoring agent. You can use this ag
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 NodeDiagnostic
 ```
 
 Example 2 (unknown):
-```unknown
+```
 get-console-output
 ```
 
 Example 3 (unknown):
-```unknown
+```
 PersistentVolumes
 ```
 
 Example 4 (unknown):
-```unknown
+```
 kubectl get pods -l app=<deployment-name>
 ```
 
@@ -896,22 +896,22 @@ Pod-level Resource Requests and Limits (Beta): This feature simplifies resource 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 storage.k8s.io/v1beta1
 ```
 
 Example 2 (unknown):
-```unknown
+```
 storage.k8s.io/v1
 ```
 
 Example 3 (unknown):
-```unknown
+```
 MutableCSINodeAllocatableCount
 ```
 
 Example 4 (unknown):
-```unknown
+```
 --cgroup-driver
 ```
 
@@ -962,17 +962,17 @@ To view the Resources tab and Nodes section on the Compute tab in the AWS Manage
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 eks:AccessKubernetesApi
 ```
 
 Example 2 (unknown):
-```unknown
+```
 111122223333
 ```
 
 Example 3 (unknown):
-```unknown
+```
 {
     "Version":"2012-10-17",
     "Statement": [
@@ -997,7 +997,7 @@ Example 3 (unknown):
 ```
 
 Example 4 (unknown):
-```unknown
+```
 rolebinding
 ```
 
@@ -1064,17 +1064,17 @@ Quickstart: Deploy a web app and store data
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 aws configure
 ```
 
 Example 2 (unknown):
-```unknown
+```
 --profile cluster-admin
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Access Key ID [None]: AKIAIOSFODNN7EXAMPLE
 Secret Access Key [None]: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
 Default region name [None]: region-code
@@ -1082,7 +1082,7 @@ Default output format [None]: json
 ```
 
 Example 4 (unknown):
-```unknown
+```
 --duration-seconds
 ```
 
@@ -1150,22 +1150,22 @@ Authenticator logs are unique to Amazon EKS. These logs represent the control pl
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 authenticator
 ```
 
 Example 2 (unknown):
-```unknown
+```
 controllerManager
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws --version
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks update-cluster-config \
     --region region-code \
     --name my-cluster \
@@ -1232,22 +1232,22 @@ Create access entries for any of the ConfigMap entries that you created returned
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 aws-auth ConfigMap
 ```
 
 Example 2 (unknown):
-```unknown
+```
 API_AND_CONFIGMAP
 ```
 
 Example 3 (unknown):
-```unknown
+```
 kube-system
 ```
 
 Example 4 (unknown):
-```unknown
+```
 CreateAccessEntry
 ```
 
@@ -1310,12 +1310,12 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
  10.2.0.0/16
 ```
 
 Example 2 (unknown):
-```unknown
+```
  10.2.0.0/16
 ```
 
@@ -1373,12 +1373,12 @@ Run the following AWS CLI command. Replace my-cluster with the name of your clus
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 "additionalArgs":
 ```
 
 Example 2 (unknown):
-```unknown
+```
 {
     "agent": {
         "additionalArgs": {
@@ -1389,12 +1389,12 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-```unknown
+```
 kubectl rollout status daemonset/eks-pod-identity-agent --namespace kube-system
 ```
 
 Example 4 (unknown):
-```unknown
+```
 kubectl rollout
 ```
 
@@ -1424,7 +1424,7 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 api | audit | authenticator | controllerManager | scheduler
 ```
 
@@ -1487,22 +1487,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -1599,22 +1599,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -1697,17 +1697,17 @@ AL2023 requires IMDSv2 by default. IMDSv2 has several benefits that help improve
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 apiServerEndpoint
 ```
 
 Example 2 (unknown):
-```unknown
+```
 certificateAuthority
 ```
 
 Example 3 (unknown):
-```unknown
+```
 ---
 apiVersion: node.eks.aws/v1alpha1
 kind: NodeConfig
@@ -1720,7 +1720,7 @@ spec:
 ```
 
 Example 4 (unknown):
-```unknown
+```
 DescribeCluster
 ```
 
@@ -1842,17 +1842,17 @@ Version 2.12.3 or later or version 1.27.160 or later of the AWS Command Line Int
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 aws --version | cut -d / -f2 | cut -d ' ' -f1
 ```
 
 Example 2 (unknown):
-```unknown
+```
 AmazonEKS_EFS_CSI_DriverRole
 ```
 
 Example 3 (unknown):
-```unknown
+```
 export cluster_name=my-cluster
 export role_name=AmazonEKS_EFS_CSI_DriverRole
 eksctl create podidentityassociation \
@@ -1864,7 +1864,7 @@ eksctl create podidentityassociation \
 ```
 
 Example 4 (unknown):
-```unknown
+```
 AmazonEKS_EFS_CSI_DriverRole
 ```
 
@@ -1911,22 +1911,22 @@ The minimum required IAM policy for the Amazon EKS cluster IAM role has changed.
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 topology.k8s.aws/zone-id
 ```
 
 Example 2 (unknown):
-```unknown
+```
 gp2 StorageClass
 ```
 
 Example 3 (unknown):
-```unknown
+```
 StorageClass
 ```
 
 Example 4 (unknown):
-```unknown
+```
 StorageClass
 ```
 
@@ -2016,22 +2016,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -2069,12 +2069,12 @@ For details on deploying the driver, see Deploy the Mountpoint for Amazon S3 dri
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 volumeAttributes
 ```
 
 Example 2 (unknown):
-```unknown
+```
 PersistentVolume
 ```
 
@@ -2172,22 +2172,22 @@ The numb
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 kubectl get --raw endpoint
 ```
 
 Example 2 (unknown):
-```unknown
+```
 metric_name{tag="value"[,...]} value
 ```
 
 Example 3 (unknown):
-```unknown
+```
 kubectl get --raw /metrics
 ```
 
 Example 4 (unknown):
-```unknown
+```
 [...]
 # HELP rest_client_requests_total Number of HTTP requests, partitioned by status code, method, and host.
 # TYPE rest_client_requests_total counter
@@ -2255,23 +2255,23 @@ The Amazon EKS Connector uses Kubernetes user impersonation to act on behalf of 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 kubectl get pods -n eks-connector
 ```
 
 Example 2 (unknown):
-```unknown
+```
 connector-init
 ```
 
 Example 3 (unknown):
-```unknown
+```
 kubectl logs eks-connector-0 --container connector-init -n eks-connector
 kubectl logs eks-connector-1 --container connector-init -n eks-connector
 ```
 
 Example 4 (unknown):
-```unknown
+```
 connector-proxy
 ```
 
@@ -2301,7 +2301,7 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 STANDARD | EXTENDED
 ```
 
@@ -2362,22 +2362,22 @@ AWS determines t
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 hostNetwork: true
 ```
 
 Example 2 (unknown):
-```unknown
+```
 ephemeralStorage.size
 ```
 
 Example 3 (unknown):
-```unknown
+```
 ec2:RebootInstances
 ```
 
 Example 4 (unknown):
-```unknown
+```
 ec2:SendSpotInstanceInterruptions
 ```
 
@@ -2459,22 +2459,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -2523,22 +2523,22 @@ Clusters are always created with the latest available Amazon EKS platform versio
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 https://github.com/awsdocs/amazon-eks-user-guide/commits/mainline/latest/ug/clusters/platform-versions.adoc.atom
 ```
 
 Example 2 (unknown):
-```unknown
+```
 NodeRestriction
 ```
 
 Example 3 (unknown):
-```unknown
+```
 ExtendedResourceToleration
 ```
 
 Example 4 (unknown):
-```unknown
+```
 NamespaceLifecycle
 ```
 
@@ -2626,22 +2626,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -2809,22 +2809,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -2906,22 +2906,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -2986,22 +2986,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -3109,12 +3109,12 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
  10.2.0.0/16
 ```
 
 Example 2 (unknown):
-```unknown
+```
  10.2.0.0/16
 ```
 
@@ -3177,22 +3177,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -3216,12 +3216,12 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 certificate-authority-data
 ```
 
 Example 2 (unknown):
-```unknown
+```
 certificate-authority-data
 ```
 
@@ -3274,22 +3274,22 @@ At least one subnet. If multiple tagged subnets are found in an Availability Zon
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 LoadBalancer
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubernetes.io/cluster/<my-cluster>
 ```
 
 Example 3 (unknown):
-```unknown
+```
 kubernetes.io/role/internal-elb
 ```
 
 Example 4 (unknown):
-```unknown
+```
 kubernetes.io/role/elb
 ```
 
@@ -3352,12 +3352,12 @@ AWS SDK for JavaScript V3
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 resourceArn
 ```
 
 Example 2 (unknown):
-```unknown
+```
 POST /tags/resourceArn HTTP/1.1
 Content-type: application/json
 
@@ -3369,12 +3369,12 @@ Content-type: application/json
 ```
 
 Example 3 (unknown):
-```unknown
+```
 resourceArn
 ```
 
 Example 4 (unknown):
-```unknown
+```
 HTTP/1.1 200
 ```
 
@@ -3415,22 +3415,22 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 ipv4 | ipv6
 ```
 
 Example 2 (unknown):
-```unknown
+```
 10.100.0.0/16
 ```
 
 Example 3 (unknown):
-```unknown
+```
 172.20.0.0/16
 ```
 
 Example 4 (unknown):
-```unknown
+```
 172.16.0.0/12
 ```
 
@@ -3492,12 +3492,12 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
  10.2.0.0/16
 ```
 
 Example 2 (unknown):
-```unknown
+```
  10.2.0.0/16
 ```
 
@@ -3531,17 +3531,17 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 ipv4 | ipv6
 ```
 
 Example 2 (unknown):
-```unknown
+```
 10.100.0.0/16
 ```
 
 Example 3 (unknown):
-```unknown
+```
 172.20.0.0/16
 ```
 
@@ -3592,17 +3592,17 @@ To view the Resources tab and Nodes section on the Compute tab in the AWS Manage
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 eks:AccessKubernetesApi
 ```
 
 Example 2 (unknown):
-```unknown
+```
 111122223333
 ```
 
 Example 3 (unknown):
-```unknown
+```
 {
     "Version":"2012-10-17",
     "Statement": [
@@ -3627,7 +3627,7 @@ Example 3 (unknown):
 ```
 
 Example 4 (unknown):
-```unknown
+```
 rolebinding
 ```
 
@@ -3694,12 +3694,12 @@ If you are using Amazon FSx for NetApp ONTAP alongside the Amazon EBS CSI driver
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 multipath.conf
 ```
 
 Example 2 (unknown):
-```unknown
+```
  defaults {
         user_friendly_names yes
         find_multipaths no
@@ -3749,22 +3749,22 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 ipv4 | ipv6
 ```
 
 Example 2 (unknown):
-```unknown
+```
 10.100.0.0/16
 ```
 
 Example 3 (unknown):
-```unknown
+```
 172.20.0.0/16
 ```
 
 Example 4 (unknown):
-```unknown
+```
 172.16.0.0/12
 ```
 
@@ -3829,22 +3829,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -3887,22 +3887,22 @@ Authenticator logs are unique to Amazon EKS. These logs represent the control pl
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 authenticator
 ```
 
 Example 2 (unknown):
-```unknown
+```
 controllerManager
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws --version
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks update-cluster-config \
     --region region-code \
     --name my-cluster \
@@ -3968,12 +3968,12 @@ You can learn
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 eksctl utils describe-addon-versions --kubernetes-version 1.33 | grep AddonName
 ```
 
 Example 2 (unknown):
-```unknown
+```
 "AddonName": "aws-ebs-csi-driver",
                         "AddonName": "coredns",
                         "AddonName": "kube-proxy",
@@ -3987,12 +3987,12 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-```unknown
+```
 name-of-addon
 ```
 
 Example 4 (unknown):
-```unknown
+```
 eksctl utils describe-addon-versions --kubernetes-version 1.33 --name name-of-addon | grep AddonVersion
 ```
 
@@ -4055,22 +4055,22 @@ Pod-level Resource Requests and Limits (Beta): This feature simplifies resource 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 storage.k8s.io/v1beta1
 ```
 
 Example 2 (unknown):
-```unknown
+```
 storage.k8s.io/v1
 ```
 
 Example 3 (unknown):
-```unknown
+```
 MutableCSINodeAllocatableCount
 ```
 
 Example 4 (unknown):
-```unknown
+```
 --cgroup-driver
 ```
 
@@ -4133,22 +4133,22 @@ If you’re using the AWS CLI, the Amazon EKS API, or an AWS SDK, you can apply 
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 TagResource
 ```
 
 Example 2 (unknown):
-```unknown
+```
 aws:eks:cluster-name
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks tag-resource --resource-arn resource_ARN --tags team=devs
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks untag-resource --resource-arn resource_ARN --tag-keys tag_key
 ```
 
@@ -4189,7 +4189,7 @@ The kube-proxy runs on every node in the cluster and continuously watches Endpoi
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -4215,17 +4215,17 @@ spec:
 ```
 
 Example 2 (unknown):
-```unknown
+```
 replicaCount
 ```
 
 Example 3 (unknown):
-```unknown
+```
 topologySpreadConstraints
 ```
 
 Example 4 (unknown):
-```unknown
+```
 values.yaml
 ```
 
@@ -4307,22 +4307,22 @@ If you’re using the AWS Load Balancer Controller version 2.1.1 or earlier, sub
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 LoadBalancer
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubernetes.io/cluster/<my-cluster>
 ```
 
 Example 3 (unknown):
-```unknown
+```
 kubernetes.io/cluster/<my-cluster>
 ```
 
 Example 4 (unknown):
-```unknown
+```
 kubernetes.io/role/internal-elb
 ```
 
@@ -4419,12 +4419,12 @@ You can use the AWS CLI to get information about Kubernetes versions available o
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 https://github.com/awsdocs/amazon-eks-user-guide/commits/mainline/latest/ug/clusters/kubernetes-versions.adoc.atom
 ```
 
 Example 2 (unknown):
-```unknown
+```
 {
     "clusterVersions": [
         {
@@ -4443,12 +4443,12 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-```unknown
+```
 clusterVersion
 ```
 
 Example 4 (unknown):
-```unknown
+```
 clusterType
 ```
 
@@ -4567,22 +4567,22 @@ A trained model must
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 inf1.6xlarge
 ```
 
 Example 2 (unknown):
-```unknown
+```
 inf1.24xlarge
 ```
 
 Example 3 (unknown):
-```unknown
+```
 inf1.2xlarge
 ```
 
 Example 4 (unknown):
-```unknown
+```
 eksctl create cluster \
     --name inferentia \
     --region region-code \
@@ -4657,22 +4657,22 @@ Download the binary for your cluster’s Kubern
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 brew install kubectl
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubectl version --client
 ```
 
 Example 3 (unknown):
-```unknown
+```
 Client Version: v1.31.X-eks-1234567
 ```
 
 Example 4 (unknown):
-```unknown
+```
 curl -O https://s3.us-west-2.amazonaws.com/amazon-eks/1.34.1/2025-09-19/bin/darwin/amd64/kubectl
 ```
 
@@ -4715,22 +4715,22 @@ Authenticator logs are unique to Amazon EKS. These logs represent the control pl
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 authenticator
 ```
 
 Example 2 (unknown):
-```unknown
+```
 controllerManager
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws --version
 ```
 
 Example 4 (unknown):
-```unknown
+```
 aws eks update-cluster-config \
     --region region-code \
     --name my-cluster \
@@ -4805,7 +4805,7 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 STANDARD | EXTENDED
 ```
 
@@ -4835,7 +4835,7 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 api | audit | authenticator | controllerManager | scheduler
 ```
 
@@ -4951,22 +4951,22 @@ Choose
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 169.254.170.23
 ```
 
 Example 2 (unknown):
-```unknown
+```
 [fd00:ec2::23]
 ```
 
 Example 3 (unknown):
-```unknown
+```
 AssumeRoleForPodIdentity
 ```
 
 Example 4 (unknown):
-```unknown
+```
 {
     "Version":"2012-10-17",
     "Statement": [
@@ -5011,22 +5011,22 @@ Alternatively, if you want a self-managed installation of the CSI snapshot contr
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 StorageClass
 ```
 
 Example 2 (unknown):
-```unknown
+```
 kubernetes.io/aws-ebs
 ```
 
 Example 3 (unknown):
-```unknown
+```
 StorageClass
 ```
 
 Example 4 (unknown):
-```unknown
+```
 ebs.csi.aws.com
 ```
 
@@ -5090,22 +5090,22 @@ Attach the policy to the EKS Cluster Ro
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 StorageClass
 ```
 
 Example 2 (unknown):
-```unknown
+```
 StorageClass
 ```
 
 Example 3 (unknown):
-```unknown
+```
 StorageClass
 ```
 
 Example 4 (unknown):
-```unknown
+```
 StorageClass
 ```
 
@@ -5148,17 +5148,17 @@ Kubernetes selects which node to run the pod on. Then, the Amazon EKS Pod Identi
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 amazon-ecs-agent
 ```
 
 Example 2 (unknown):
-```unknown
+```
 AssumeRoleWithWebIdentity
 ```
 
 Example 3 (unknown):
-```unknown
+```
     env:
     - name: AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE
       value: "/var/run/secrets/pods.eks.amazonaws.com/serviceaccount/eks-pod-identity-token"
@@ -5261,17 +5261,17 @@ AWS SDK for JavaScript V3
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 DELETE /tags/resourceArn?tagKeys=tagKeys HTTP/1.1
 ```
 
 Example 2 (unknown):
-```unknown
+```
 resourceArn
 ```
 
 Example 3 (unknown):
-```unknown
+```
 HTTP/1.1 200
 ```
 
@@ -5360,22 +5360,22 @@ For more information about using this API in one of the language-specific AWS SD
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 ipv4 | ipv6
 ```
 
 Example 2 (unknown):
-```unknown
+```
 10.100.0.0/16
 ```
 
 Example 3 (unknown):
-```unknown
+```
 172.20.0.0/16
 ```
 
 Example 4 (unknown):
-```unknown
+```
 172.16.0.0/12
 ```
 
@@ -5429,12 +5429,12 @@ If you want to update to a version earlier than the latest available version, th
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 eksctl get addon --cluster my-cluster
 ```
 
 Example 2 (unknown):
-```unknown
+```
 NAME        VERSION              STATUS  ISSUES  IAMROLE  UPDATE AVAILABLE
 coredns     v1.8.7-eksbuild.2    ACTIVE  0
 kube-proxy  v1.23.7-eksbuild.1   ACTIVE  0                v1.23.8-eksbuild.2
@@ -5442,12 +5442,12 @@ vpc-cni     v1.10.4-eksbuild.1   ACTIVE  0                v1.12.0-eksbuild.1,v1.
 ```
 
 Example 3 (unknown):
-```unknown
+```
 UPDATE AVAILABLE
 ```
 
 Example 4 (unknown):
-```unknown
+```
 region-code
 ```
 
@@ -5508,22 +5508,22 @@ Pods will have access to the permissions that are assigned to the IAM role unles
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 ebs.csi.eks.amazonaws.com
 ```
 
 Example 2 (unknown):
-```unknown
+```
 ebs.csi.aws.com
 ```
 
 Example 3 (unknown):
-```unknown
+```
 aws eks describe-addon-versions --addon-name aws-ebs-csi-driver
 ```
 
 Example 4 (unknown):
-```unknown
+```
 kubectl describe pvc
 ```
 
@@ -5576,12 +5576,12 @@ All of the session tags that are added by EKS Pod Identity are transitive; the t
 **Examples:**
 
 Example 1 (unknown):
-```unknown
+```
 s3:GetObject
 ```
 
 Example 2 (unknown):
-```unknown
+```
 {
     "Version":"2012-10-17",
     "Statement": [
@@ -5610,12 +5610,12 @@ Example 2 (unknown):
 ```
 
 Example 3 (unknown):
-```unknown
+```
 ${aws:PrincipalTag/
 ```
 
 Example 4 (unknown):
-```unknown
+```
 ${aws:PrincipalTag/kubernetes-namespace}
 ```
 

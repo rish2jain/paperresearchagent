@@ -1020,7 +1020,14 @@ async def batch_research(request: BatchResearchRequest):
     failed = 0
     
     # Process queries in parallel (limited concurrency)
-    max_concurrent = int(os.getenv("MAX_CONCURRENT_BATCH", "5"))
+    max_concurrent_env = os.getenv("MAX_CONCURRENT_BATCH", "5")
+    try:
+        max_concurrent = int(max_concurrent_env)
+        # Clamp to safe range: minimum 1, maximum 100
+        max_concurrent = max(1, min(100, max_concurrent))
+    except (ValueError, TypeError):
+        max_concurrent = 5  # Sensible default
+        logger.warning(f"Invalid MAX_CONCURRENT_BATCH value '{max_concurrent_env}', using default: 5")
     semaphore = asyncio.Semaphore(max_concurrent)
     
     async def process_single_query(query: str) -> Dict[str, Any]:

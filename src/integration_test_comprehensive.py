@@ -239,6 +239,7 @@ async def test_caching(test_config):
         ) as response:
             assert response.status == 200
             time1 = time.time() - start1
+            data1 = await response.json()
         
         # Second request (cache hit - should be faster)
         start2 = time.time()
@@ -249,10 +250,17 @@ async def test_caching(test_config):
         ) as response:
             assert response.status == 200
             time2 = time.time() - start2
-        
-        # Cache hit should be significantly faster
-        # (allowing some tolerance for network variance)
-        assert time2 < time1 * 0.8  # At least 20% faster
+            data2 = await response.json()
+            
+            # Check cache indicator in response
+            cache_status = data2.get("cache_status", "UNKNOWN")
+            assert cache_status in ["HIT", "MISS"], f"Expected cache_status HIT or MISS, got {cache_status}"
+            
+            # First request should be MISS, second should be HIT
+            if 'data1' in locals():
+                # If we have data from first request, check it too
+                assert data1.get("cache_status") == "MISS", "First request should be cache MISS"
+            assert cache_status == "HIT", "Second request should be cache HIT"
 
 
 @pytest.mark.asyncio
@@ -288,16 +296,38 @@ async def test_rate_limiting(test_config):
     async with aiohttp.ClientSession() as session:
         # Make multiple rapid requests
         responses = []
+        response_headers = []
         for _ in range(10):
             async with session.post(
                 f"{test_config['api_url']}/research",
                 json=payload,
-                timeout=aiohttp.ClientTimeout(total=10)
+                timeout=aiohttp.ClientTimeout(total=5)  # Reduced timeout for faster test
             ) as response:
-                responses.append(response.status)
+                status = response.status
+                responses.append(status)
+                # Capture rate limit headers if present
+                headers = {
+                    "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit"),
+                    "X-RateLimit-Remaining": response.headers.get("X-RateLimit-Remaining"),
+                    "X-RateLimit-Reset": response.headers.get("X-RateLimit-Reset"),
+                }
+                response_headers.append(headers)
+        
+        # Count status codes
+        status_200_count = responses.count(200)
+        status_429_count = responses.count(429)
         
         # Some requests should succeed (at least one)
-        assert 200 in responses
+        assert status_200_count > 0, "Expected at least one 200 response"
+        # Some requests should be rate limited
+        assert status_429_count > 0, "Expected at least one 429 rate limit response"
+        
+        # Verify rate limit headers are present in successful responses
+        for i, (status, headers) in enumerate(zip(responses, response_headers)):
+            if status == 200:
+                # Successful responses should have rate limit headers
+                assert headers["X-RateLimit-Limit"] is not None, f"Response {i} missing X-RateLimit-Limit header"
+                assert headers["X-RateLimit-Remaining"] is not None, f"Response {i} missing X-RateLimit-Remaining header"
 
 
 if __name__ == "__main__":

@@ -25,7 +25,7 @@ Verify at: https://org.ngc.nvidia.com/subscriptions
 ### 2️⃣ Apply Fixed Deployment (2 min)
 
 ```bash
-cd /Users/rish2jain/Documents/Hackathons/research-ops-agent
+cd <project-root>
 
 # Delete old deployment
 kubectl delete deployment reasoning-nim -n research-ops

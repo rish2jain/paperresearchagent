@@ -11,6 +11,7 @@ import os
 import logging
 from typing import Dict, Optional, Tuple, Any, List
 from functools import lru_cache
+from utils.session_manager import SessionManager
 
 logger = logging.getLogger(__name__)
 
@@ -97,6 +98,99 @@ def get_narrative_message(decision_type: str, agent: str, decision: str, metadat
     
     # Default fallback
     return f"🤖 {agent}: {decision}"
+
+def show_agent_status(decisions: List[Dict], container):
+    """
+    Display real-time agent activity based on decision log.
+    
+    Shows what each agent is currently doing with contextual messages.
+    
+    Args:
+        decisions: List of agent decision dicts from API response
+        container: Streamlit container for status display
+    """
+    with container:
+        # Group decisions by agent
+        agent_activity = {}
+        for decision in decisions:
+            agent = decision.get("agent", "Unknown")
+            if agent not in agent_activity:
+                agent_activity[agent] = []
+            agent_activity[agent].append(decision)
+        
+        # Display each agent's latest activity
+        cols = st.columns(4)  # Scout, Analyst, Synthesizer, Coordinator
+        agent_names = ["Scout", "Analyst", "Synthesizer", "Coordinator"]
+        
+        for idx, agent_name in enumerate(agent_names):
+            with cols[idx]:
+                if agent_name in agent_activity:
+                    latest = agent_activity[agent_name][-1]
+                    decision_type = latest.get("decision_type", "")
+                    decision_text = latest.get("decision", "")
+                    
+                    # Contextual emoji based on agent
+                    emoji_map = {
+                        "Scout": "🔍",
+                        "Analyst": "📊", 
+                        "Synthesizer": "🧩",
+                        "Coordinator": "🎯"
+                    }
+                    
+                    st.markdown(f"**{emoji_map.get(agent_name, '🤖')} {agent_name}**")
+                    
+                    # Show decision type as caption
+                    if decision_type:
+                        formatted_type = decision_type.replace('_', ' ').title()
+                        st.caption(f"{formatted_type}")
+                    
+                    # Show short decision text
+                    if decision_text and len(decision_text) < 50:
+                        st.caption(f"*{decision_text}*")
+                else:
+                    st.markdown(f"**⏳ {agent_name}**")
+                    st.caption("Waiting...")
+
+def show_decision_timeline(decisions: List[Dict]):
+    """
+    Display chronological timeline of agent decisions.
+    
+    Shows the decision-making process as a visual timeline.
+    """
+    st.markdown("### 📅 Agent Decision Timeline")
+    
+    if not decisions:
+        st.info("No decisions logged yet.")
+        return
+    
+    for idx, decision in enumerate(decisions):
+        agent = decision.get("agent", "Unknown")
+        decision_text = decision.get("decision", "")
+        reasoning = decision.get("reasoning", "")
+        nim_used = decision.get("nim_used", "")
+        decision_type = decision.get("decision_type", "")
+        
+        # Agent-specific colors
+        color_map = {
+            "Scout": "#1976D2",
+            "Analyst": "#F57C00",
+            "Synthesizer": "#7B1FA2",
+            "Coordinator": "#388E3C"
+        }
+        
+        border_color = color_map.get(agent, "#757575")
+        
+        # Format decision type
+        formatted_type = decision_type.replace('_', ' ').title() if decision_type else ""
+        
+        st.markdown(f"""
+        <div style="border-left: 4px solid {border_color}; padding-left: 1rem; margin: 0.5rem 0;">
+            <strong>Step {idx+1}: {agent}</strong> {f"- {formatted_type}" if formatted_type else ""}<br>
+            <em>{decision_text}</em><br>
+            <small>💭 Reasoning: {reasoning[:100]}{"..." if len(reasoning) > 100 else ""}</small><br>
+            <small>🤖 NIM: {nim_used if nim_used else "N/A"}</small>
+        </div>
+        """, unsafe_allow_html=True)
 
 # Result caching class for 95% faster repeat queries
 import hashlib
@@ -550,6 +644,236 @@ def render_papers_paginated(papers: List[Dict], items_per_page: int = 10) -> Non
             st.markdown("---")
 
 
+# Progressive Disclosure Helper Functions (Phase 2.2 UX Improvement)
+
+def render_synthesis_collapsible(synthesis: str, preview_length: int = 500) -> None:
+    """
+    Render synthesis with progressive disclosure.
+    Shows preview with "Read Full Synthesis" button for long content.
+    
+    Args:
+        synthesis: Full synthesis text
+        preview_length: Characters to show in preview (default: 500)
+    """
+    if not synthesis:
+        st.info("No synthesis available.")
+        return
+    
+    if len(synthesis) > preview_length:
+        # Initialize session state for synthesis expansion
+        if "synthesis_expanded" not in st.session_state:
+            st.session_state.synthesis_expanded = False
+        
+        # Show preview or full text
+        if st.session_state.synthesis_expanded:
+            st.markdown(synthesis)
+            if st.button("📕 Show Less", key="synthesis_collapse", help="Collapse to preview (Alt+L)"):
+                st.session_state.synthesis_expanded = False
+                st.rerun()
+        else:
+            preview = synthesis[:preview_length] + "..."
+            st.markdown(preview)
+            if st.button("📖 Read Full Synthesis", key="synthesis_expand", help="Expand to read complete synthesis (Alt+E)"):
+                st.session_state.synthesis_expanded = True
+                st.rerun()
+    else:
+        # Short synthesis, show in full
+        st.markdown(synthesis)
+
+
+def render_decisions_collapsible(decisions: List[Dict], initial_count: int = 5) -> None:
+    """
+    Render agent decisions with progressive disclosure.
+    Shows first N decisions, rest hidden behind "Show More".
+    
+    Args:
+        decisions: List of decision dicts
+        initial_count: Number of decisions to show initially (default: 5)
+    """
+    if not decisions:
+        st.info("No decisions recorded yet.")
+        return
+    
+    # Initialize session state
+    if "show_all_decisions" not in st.session_state:
+        st.session_state.show_all_decisions = False
+    
+    # Always show initial decisions
+    for idx in range(min(initial_count, len(decisions))):
+        render_single_decision(decisions[idx], idx)
+    
+    # Hide additional decisions behind "Show More"
+    if len(decisions) > initial_count:
+        remaining = len(decisions) - initial_count
+        
+        if st.session_state.show_all_decisions:
+            # Show remaining decisions
+            for idx in range(initial_count, len(decisions)):
+                render_single_decision(decisions[idx], idx)
+            
+            if st.button(f"📕 Show Less", key="decisions_collapse", help="Show only first {initial_count} decisions"):
+                st.session_state.show_all_decisions = False
+                st.rerun()
+        else:
+            if st.button(f"📖 Show {remaining} More Decisions", key="decisions_expand", help="Show all decisions"):
+                st.session_state.show_all_decisions = True
+                st.rerun()
+
+
+def render_single_decision(decision: Dict, idx: int) -> None:
+    """
+    Render a single decision card with consistent styling.
+    
+    Args:
+        decision: Decision dict with agent, decision, reasoning
+        idx: Decision index for display
+    """
+    agent = decision.get("agent", "Unknown")
+    decision_text = decision.get("decision", "")
+    reasoning = decision.get("reasoning", "")
+    decision_type = decision.get("decision_type", "")
+    nim_used = decision.get("nim_used", "")
+    
+    # Agent-specific emoji
+    agent_emoji = {
+        "Scout": "🔍",
+        "Analyst": "📊",
+        "Synthesizer": "🧩",
+        "Coordinator": "🎯",
+    }.get(agent, "🤖")
+    
+    # Create decision card
+    col1, col2 = st.columns([3, 1])
+    
+    with col1:
+        st.markdown(f"**#{idx+1} {agent_emoji} {agent}**: {decision_text}")
+    
+    with col2:
+        # NIM badge
+        if "Reasoning" in nim_used:
+            st.caption("🧠 Reasoning NIM")
+        elif "Embedding" in nim_used:
+            st.caption("🔍 Embedding NIM")
+    
+    # Show reasoning preview
+    if reasoning:
+        reasoning_preview = reasoning[:150] + "..." if len(reasoning) > 150 else reasoning
+        st.caption(f"*{reasoning_preview}*")
+    
+    # Confidence if available
+    confidence = decision.get("metadata", {}).get("confidence")
+    if confidence:
+        st.caption(f"Confidence: {confidence:.0%}")
+    
+    st.markdown("---")
+
+
+def render_metrics_summary(metrics: Dict) -> None:
+    """
+    Render metrics with progressive disclosure.
+    Shows key metrics upfront, detailed metrics in expander.
+    
+    Args:
+        metrics: Metrics dictionary
+    """
+    if not metrics:
+        return
+    
+    st.markdown("### 📊 Research Metrics")
+    
+    # Key metrics always visible (4 most important)
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        total_papers = metrics.get("total_papers_analyzed", metrics.get("papers_found", 0))
+        st.metric("Papers Analyzed", total_papers)
+    
+    with col2:
+        sources = metrics.get("sources_queried", metrics.get("databases_searched", 7))
+        st.metric("Sources Queried", sources)
+    
+    with col3:
+        duration = metrics.get("total_duration_seconds", metrics.get("processing_time", 0))
+        st.metric("Duration", f"{duration:.1f}s")
+    
+    with col4:
+        decisions = metrics.get("total_decisions", metrics.get("decisions_made", 0))
+        st.metric("Agent Decisions", decisions)
+    
+    # Detailed metrics in expander
+    with st.expander("📈 Detailed Metrics", expanded=False):
+        st.json(metrics)
+
+
+def render_papers_summary(papers: List[Dict]) -> None:
+    """
+    Show papers summary before pagination.
+    Provides overview of paper sources, years, and authors.
+    
+    Args:
+        papers: List of paper dicts
+    """
+    if not papers:
+        return
+    
+    st.markdown(f"### 📚 Found {len(papers)} Papers")
+    
+    # Calculate distributions
+    sources = {}
+    years = {}
+    
+    for paper in papers:
+        source = paper.get("source", "Unknown")
+        year = paper.get("year", "Unknown")
+        
+        sources[source] = sources.get(source, 0) + 1
+        years[str(year)] = years.get(str(year), 0) + 1
+    
+    # Show distribution in two columns
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**📊 By Source:**")
+        for source, count in sorted(sources.items(), key=lambda x: x[1], reverse=True)[:5]:
+            st.caption(f"{source}: {count} papers")
+        
+        if len(sources) > 5:
+            st.caption(f"... and {len(sources) - 5} more sources")
+    
+    with col2:
+        st.markdown("**📅 By Year:**")
+        for year, count in sorted(years.items(), key=lambda x: x[0], reverse=True)[:5]:
+            st.caption(f"{year}: {count} papers")
+        
+        if len(years) > 5:
+            st.caption(f"... and {len(years) - 5} more years")
+    
+    st.markdown("---")
+
+
+def render_expand_collapse_controls() -> None:
+    """
+    Render Expand All / Collapse All controls at top of results.
+    Controls all expandable sections via session state.
+    """
+    col1, col2, col3 = st.columns([1, 1, 2])
+    
+    with col1:
+        if st.button("📖 Expand All", key="expand_all", help="Expand all collapsible sections"):
+            st.session_state.synthesis_expanded = True
+            st.session_state.show_all_decisions = True
+            st.rerun()
+    
+    with col2:
+        if st.button("📕 Collapse All", key="collapse_all", help="Collapse all sections to summaries"):
+            st.session_state.synthesis_expanded = False
+            st.session_state.show_all_decisions = False
+            st.rerun()
+    
+    with col3:
+        st.caption("💡 Use these controls to manage information visibility")
+
+
 # Custom CSS for better styling with improved contrast, accessibility, and mobile responsiveness
 def load_custom_css():
     """
@@ -862,9 +1186,11 @@ with st.expander("🎓 New to this field? Early-career researcher?", expanded=Fa
     Our agents help you discover key papers and patterns you'd miss manually.
     """)
 
+session = SessionManager.get()
+
 query = st.text_input(
     "Research topic:",
-    value=st.session_state.get("example_query", ""),
+    value=session.query,
     placeholder="e.g., machine learning for medical imaging",
     help="Describe your research topic. Our agents will find relevant papers, identify patterns, and spot contradictions.",
     key="main-query-input",
@@ -889,19 +1215,21 @@ with col1:
         help="Start research synthesis (Ctrl/Cmd + Enter)",
     )
 with col2:
-    if st.session_state.get("last_query"):
-        st.caption(f"Last query: {st.session_state['last_query'][:50]}...")
+    if session.last_query_time:
+        st.caption(f"Last query: {session.query[:50]}... ({session.last_query_time.strftime('%H:%M')})")
     if use_date_filter and start_year and end_year:
         st.caption(f"📅 Filter: {start_year}-{end_year}")
 with col3:
     clear_button = st.button("🗑️ Clear", use_container_width=True)
     if clear_button:
-        st.session_state.clear()
+        SessionManager.reset()
+        ResultCache.clear()
         st.rerun()
 
 # Research execution
 if start_button and query:
-    st.session_state["last_query"] = query
+    session.query = query
+    SessionManager.update(session)
 
     # Storytelling Progress Display
     progress_container = st.container()
@@ -927,6 +1255,11 @@ if start_button and query:
         progress_bar = st.progress(0)
         status_text = st.empty()
         nim_indicator = st.empty()
+        
+        # Real-time agent status display (Phase 2.1)
+        st.markdown("---")
+        st.markdown("#### 🤖 Agent Activity")
+        agent_status_container = st.container()
 
     try:
         # Prepare cache parameters
@@ -1053,6 +1386,10 @@ if start_button and query:
             themes_count = len(result.get("common_themes", []))
             gaps_count = len(result.get("research_gaps", []))
             
+            # Show real-time agent status (Phase 2.1)
+            if decisions:
+                show_agent_status(decisions, agent_status_container)
+            
             for decision in decisions:
                 agent = decision.get("agent", "")
                 decision_type = decision.get("decision_type", "")
@@ -1138,6 +1475,12 @@ if start_button and query:
                 f"Completed in {time_elapsed:.1f} seconds. "
                 f"Your advisor will love the transparency—see exactly why agents made each decision."
             )
+            
+            # Decision Timeline (Phase 2.1) - Show chronological agent decisions
+            if decisions:
+                with st.expander("🔍 View Agent Decision Timeline", expanded=False):
+                    st.markdown("*See the complete decision-making process from start to finish*")
+                    show_decision_timeline(decisions)
             
             # Shareable Discovery Moment
             contradictions_count = len(result.get("contradictions", []))
@@ -1226,6 +1569,23 @@ if start_button and query:
                 """)
             
             st.markdown("---")
+            
+            # Research Metrics Summary (Phase 2.2)
+            metrics_data = {
+                "total_papers_analyzed": result.get("papers_analyzed", 0),
+                "sources_queried": 7,  # Always 7 databases
+                "total_duration_seconds": result.get("processing_time_seconds", 0),
+                "total_decisions": len(result.get("decisions", [])),
+                "papers_found": len(result.get("papers", [])),
+                "decisions_made": len(result.get("decisions", [])),
+                "processing_time": result.get("processing_time_seconds", 0),
+                "common_themes": len(result.get("common_themes", [])),
+                "contradictions_found": len(result.get("contradictions", [])),
+                "research_gaps": len(result.get("research_gaps", []))
+            }
+            render_metrics_summary(metrics_data)
+            
+            st.markdown("---")
 
             # Agent Decisions Section - Simplified (Show only key decisions)
             st.markdown("## 🎯 How Agents Made Decisions")
@@ -1234,87 +1594,10 @@ if start_button and query:
             decisions = result.get("decisions", [])
 
             if decisions:
-                # Group decisions by agent
-                decisions_by_agent = {}
-                for decision in decisions:
-                    agent = decision.get("agent", "Unknown")
-                    if agent not in decisions_by_agent:
-                        decisions_by_agent[agent] = []
-                    decisions_by_agent[agent].append(decision)
+                # Use progressive disclosure for decisions (Phase 2.2)
+                render_decisions_collapsible(decisions, initial_count=5)
                 
-                # Display grouped decisions with progressive disclosure
-                agent_emoji_map = {
-                    "Scout": "🔍",
-                    "Analyst": "📊",
-                    "Synthesizer": "🧩",
-                    "Coordinator": "🎯",
-                }
-                
-                # Show summary of all agents
-                st.markdown("### 📊 Decision Summary by Agent")
-                summary_cols = st.columns(len(decisions_by_agent))
-                for idx, (agent, agent_decisions) in enumerate(decisions_by_agent.items()):
-                    with summary_cols[idx]:
-                        emoji = agent_emoji_map.get(agent, "🤖")
-                        st.metric(f"{emoji} {agent}", len(agent_decisions))
-                
-                st.markdown("---")
-                
-                # Show each agent's decisions in expandable sections
-                for agent, agent_decisions in decisions_by_agent.items():
-                    emoji = agent_emoji_map.get(agent, "🤖")
-                    
-                    # Determine if this agent's decisions should be expanded by default
-                    # Expand if has contradictions or important decisions
-                    has_important = any(
-                        "CONTRADICTION" in d.get("decision_type", "") or 
-                        "GAP" in d.get("decision_type", "") or
-                        "QUALITY" in d.get("decision_type", "")
-                        for d in agent_decisions
-                    )
-                    
-                    with st.expander(
-                        f"{emoji} {agent} Agent ({len(agent_decisions)} decisions)", 
-                        expanded=has_important
-                    ):
-                        for i, decision in enumerate(agent_decisions, 1):
-                            decision_type = decision.get("decision_type", "Unknown")
-                            decision_text = decision.get("decision", "")
-                            reasoning = decision.get("reasoning", "")
-                            
-                            # Show decision with type badge
-                            col1, col2 = st.columns([3, 1])
-                            with col1:
-                                st.markdown(f"**{i}. {decision_text}**")
-                            with col2:
-                                # NIM badge
-                                nim_used = decision.get("nim_used", "")
-                                if "Reasoning" in nim_used:
-                                    st.caption("🧠 Reasoning NIM")
-                                elif "Embedding" in nim_used:
-                                    st.caption("🔍 Embedding NIM")
-                            
-                            # Show reasoning
-                            if reasoning:
-                                reasoning_preview = reasoning[:150] + "..." if len(reasoning) > 150 else reasoning
-                                st.caption(f"*Reasoning: {reasoning_preview}*")
-                                
-                                if len(reasoning) > 150:
-                                    if st.button(f"Show full reasoning", key=f"reasoning_{agent}_{i}"):
-                                        st.info(reasoning)
-                            
-                            # Show metadata if available
-                            metadata = decision.get("metadata", {})
-                            if metadata:
-                                confidence = metadata.get("confidence")
-                                if confidence:
-                                    st.caption(f"Confidence: {confidence:.0%}")
-                            
-                            # Visual separator between decisions
-                            if i < len(agent_decisions):
-                                st.markdown("---")
-                
-                # Alternative timeline view
+                # Alternative timeline view in expander
                 with st.expander("📊 Decision Timeline View", expanded=False):
                     st.markdown("### 🤖 Agent Decision Timeline")
                     st.markdown("*Visual representation of autonomous decision-making process*")
@@ -1516,33 +1799,16 @@ if start_button and query:
             st.markdown("## 📊 What Your Agents Discovered")
             st.markdown("*Comprehensive findings from {0} papers analyzed across 7 databases*".format(result.get("papers_analyzed", 0)))
 
-            # Synthesis Section with Preview (if available)
+            # Expand/Collapse All Controls (Phase 2.2)
+            render_expand_collapse_controls()
+            
+            st.markdown("---")
+
+            # Synthesis Section with Progressive Disclosure (Phase 2.2)
             synthesis_text = result.get("synthesis", "")
             if synthesis_text:
                 st.markdown("### 📝 Research Synthesis")
-                synthesis_length = len(synthesis_text)
-                
-                if synthesis_length > 1000:  # ~200 words, show preview
-                    with st.expander("📝 Synthesis Preview (Click to expand)", expanded=True):
-                        preview = synthesis_text[:1000] + "..."
-                        st.markdown(preview)
-                    
-                    # Button to show full synthesis
-                    if st.button("📖 Show Full Synthesis", key="show_full_synthesis"):
-                        st.markdown("### 📖 Complete Synthesis")
-                        st.markdown(synthesis_text)
-                        
-                        # Download button for full synthesis
-                        st.download_button(
-                            "💾 Download Synthesis",
-                            data=synthesis_text,
-                            file_name=f"synthesis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md",
-                            mime="text/markdown",
-                            help="Download the complete synthesis as markdown"
-                        )
-                else:
-                    # Short synthesis, show in full
-                    st.markdown(synthesis_text)
+                render_synthesis_collapsible(synthesis_text, preview_length=500)
                 
                 st.markdown("---")
 
@@ -1915,6 +2181,10 @@ if start_button and query:
                 f"Browse all {papers_count} papers analyzed in this research synthesis. "
                 "Expand any paper to view full details."
             )
+            
+            # Papers Summary (Phase 2.2) - Show distribution overview
+            if papers_count > 0:
+                render_papers_summary(papers)
 
             # Performance optimization: Use pagination for 10+ papers
             if papers_count >= 10:
@@ -2016,6 +2286,13 @@ if start_button and query:
                             mime="text/plain",
                             use_container_width=True,
                             help="Complete LaTeX document ready to compile",
+                        )
+                    except ImportError:
+                        st.button(
+                            label="📝 LaTeX",
+                            disabled=True,
+                            use_container_width=True,
+                            help="Install python-docx: pip install python-docx",
                         )
                     except Exception as e:
                         st.error(f"Error generating LaTeX: {e}")

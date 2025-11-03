@@ -6,8 +6,6 @@ Checks which paper source APIs are configured and enabled
 
 import os
 import sys
-import asyncio
-import requests
 from typing import Dict, Any
 
 # Add src to path

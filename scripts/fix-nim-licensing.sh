@@ -8,6 +8,38 @@ echo "🔧 NIM Licensing Fix Script"
 echo "==========================="
 echo ""
 
+# Prerequisite validations
+echo "🔍 Checking prerequisites..."
+
+# Check kubectl exists
+if ! command -v kubectl &> /dev/null; then
+    echo "❌ Error: kubectl not found. Please install kubectl first."
+    exit 1
+fi
+
+# Check curl exists
+if ! command -v curl &> /dev/null; then
+    echo "❌ Error: curl not found. Please install curl first."
+    exit 1
+fi
+
+# Check kubectl can reach cluster
+if ! kubectl cluster-info &> /dev/null; then
+    echo "❌ Error: Cannot connect to Kubernetes cluster."
+    echo "Please ensure kubectl is configured correctly."
+    exit 1
+fi
+
+# Check namespace exists
+if ! kubectl get namespace research-ops &> /dev/null; then
+    echo "❌ Error: Namespace 'research-ops' does not exist."
+    echo "Please create it first: kubectl create namespace research-ops"
+    exit 1
+fi
+
+echo "✅ Prerequisites validated"
+echo ""
+
 # Check NGC API key is set
 if [ -z "$NGC_API_KEY" ]; then
     echo "❌ Error: NGC_API_KEY environment variable not set"
@@ -25,8 +57,9 @@ if [[ ! "$NGC_API_KEY" =~ ^nvapi- ]]; then
     echo "Format should be: nvapi-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
     echo ""
     echo "Are you sure this is correct? (y/n)"
-    read -r response
+    read -r -t 10 response || response=""
     if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo "Exiting due to invalid API key format or timeout."
         exit 1
     fi
 fi
@@ -36,8 +69,25 @@ echo ""
 
 # Test NGC API key
 echo "🧪 Testing NGC API key..."
-response=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $NGC_API_KEY" \
-    https://api.ngc.nvidia.com/v2/org/nim/team/meta/models)
+# Store API key in temporary file with restricted permissions
+NGC_KEY_FILE=$(mktemp)
+chmod 600 "$NGC_KEY_FILE"
+echo "$NGC_API_KEY" > "$NGC_KEY_FILE"
+
+# Use curl config file to avoid exposing key in process list
+CURL_CONFIG=$(mktemp)
+cat > "$CURL_CONFIG" <<EOF
+url = "https://api.ngc.nvidia.com/v2/org/nim/team/meta/models"
+header = "Authorization: Bearer $NGC_API_KEY"
+silent
+write-out = "%{http_code}"
+output = /dev/null
+EOF
+
+response=$(curl -K "$CURL_CONFIG" 2>/dev/null || echo "000")
+
+# Clean up temporary files
+rm -f "$NGC_KEY_FILE" "$CURL_CONFIG"
 
 if [ "$response" -eq 200 ]; then
     echo "✅ NGC API key is valid and working"
@@ -79,21 +129,52 @@ echo ""
 # Patch deployments to use imagePullSecrets
 echo "🔄 Updating deployments to use NGC credentials..."
 
-kubectl patch deployment reasoning-nim -n research-ops -p '
+# Check if deployments exist before patching
+if kubectl get deployment reasoning-nim -n research-ops &>/dev/null; then
+    if kubectl patch deployment reasoning-nim -n research-ops -p '
 spec:
   template:
     spec:
       imagePullSecrets:
       - name: ngc-docker-credentials
-' 2>/dev/null || echo "Note: reasoning-nim deployment already patched or not found"
+' 2>&1; then
+        echo "✅ reasoning-nim deployment patched"
+    else
+        patch_err=$(kubectl patch deployment reasoning-nim -n research-ops -p '
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+      - name: ngc-docker-credentials
+' 2>&1)
+        echo "⚠️  Warning: Failed to patch reasoning-nim: $patch_err"
+    fi
+else
+    echo "ℹ️  reasoning-nim deployment not found, skipping patch"
+fi
 
-kubectl patch deployment embedding-nim -n research-ops -p '
+if kubectl get deployment embedding-nim -n research-ops &>/dev/null; then
+    if kubectl patch deployment embedding-nim -n research-ops -p '
 spec:
   template:
     spec:
       imagePullSecrets:
       - name: ngc-docker-credentials
-' 2>/dev/null || echo "Note: embedding-nim deployment already patched or not found"
+' 2>&1; then
+        echo "✅ embedding-nim deployment patched"
+    else
+        patch_err=$(kubectl patch deployment embedding-nim -n research-ops -p '
+spec:
+  template:
+    spec:
+      imagePullSecrets:
+      - name: ngc-docker-credentials
+' 2>&1)
+        echo "⚠️  Warning: Failed to patch embedding-nim: $patch_err"
+    fi
+else
+    echo "ℹ️  embedding-nim deployment not found, skipping patch"
+fi
 
 echo "✅ Deployments updated"
 echo ""

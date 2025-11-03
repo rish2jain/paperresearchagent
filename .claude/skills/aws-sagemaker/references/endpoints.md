@@ -29,9 +29,7 @@ At a high level, there are five main components in the SageMaker Edge Manager wo
 
 SageMaker Edge Manager uses SageMaker Neo to optimize your models for the target hardware in one click, then to cryptographically sign your models before deployment. Using SageMaker Edge Manager, you can sample model input and output data from edge devices and send it to the cloud for monitoring and analysis, and view a dashboard that tracks and visually reports on the operation of the deployed models within the SageMaker AI console.
 
-SageMaker Edge Manager extends capabilities that were previously only available in the cloud to the edge, so developers can continuously improve model
-
-*[Content truncated]*
+SageMaker Edge Manager extends capabilities that were previously only available in the cloud to the edge, so developers can continuously improve model performance through ongoing optimization and monitoring.
 
 ---
 
@@ -72,8 +70,6 @@ On the Domain details page, select the User profiles tab.
 
 Choose your User profile.
 
-On the user profile
-
-*[Content truncated]*
+On the user profile page, you can modify deployment permissions as needed.
 
 ---

@@ -7,6 +7,7 @@ import time
 import logging
 import asyncio
 import inspect
+import threading
 from enum import Enum
 from typing import Optional, Callable, Any
 from dataclasses import dataclass, field
@@ -45,6 +46,7 @@ class CircuitBreaker:
         self.name = name
         self.config = config or CircuitBreakerConfig()
         
+        self._lock = threading.Lock()
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.success_count = 0
@@ -53,33 +55,35 @@ class CircuitBreaker:
     
     def _should_attempt(self) -> bool:
         """Check if we should attempt a request based on circuit state"""
-        if self.state == CircuitState.CLOSED:
-            return True
-        
-        if self.state == CircuitState.OPEN:
-            # Check if timeout has passed
-            if self.next_attempt_time and datetime.now() >= self.next_attempt_time:
-                self.state = CircuitState.HALF_OPEN
-                self.success_count = 0
-                logger.info(f"Circuit breaker {self.name}: Moving to HALF_OPEN state")
+        with self._lock:
+            if self.state == CircuitState.CLOSED:
                 return True
-            return False
-        
-        # HALF_OPEN state - allow attempt
-        return True
+            
+            if self.state == CircuitState.OPEN:
+                # Check if timeout has passed
+                if self.next_attempt_time and datetime.now() >= self.next_attempt_time:
+                    self.state = CircuitState.HALF_OPEN
+                    self.success_count = 0
+                    logger.info(f"Circuit breaker {self.name}: Moving to HALF_OPEN state")
+                    return True
+                return False
+            
+            # HALF_OPEN state - allow attempt
+            return True
     
     def _on_success(self):
         """Handle successful request"""
-        if self.state == CircuitState.HALF_OPEN:
-            self.success_count += 1
-            if self.success_count >= self.config.success_threshold:
-                self.state = CircuitState.CLOSED
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                self.success_count += 1
+                if self.success_count >= self.config.success_threshold:
+                    self.state = CircuitState.CLOSED
+                    self.failure_count = 0
+                    self.success_count = 0
+                    logger.info(f"Circuit breaker {self.name}: Service recovered, CLOSED")
+            elif self.state == CircuitState.CLOSED:
+                # Reset failure count on success
                 self.failure_count = 0
-                self.success_count = 0
-                logger.info(f"Circuit breaker {self.name}: Service recovered, CLOSED")
-        elif self.state == CircuitState.CLOSED:
-            # Reset failure count on success
-            self.failure_count = 0
     
     def _on_failure(self, exception: Exception):
         """Handle failed request"""
@@ -88,32 +92,33 @@ class CircuitBreaker:
             logger.debug(f"Circuit breaker {self.name}: Excluding {type(exception).__name__} from failure count")
             return
         
-        if self.state == CircuitState.HALF_OPEN:
-            # Failed in half-open, go back to open
-            self.state = CircuitState.OPEN
-            self.failure_count = 0
-            self.success_count = 0
-            self.last_failure_time = datetime.now()
-            self.next_attempt_time = datetime.now() + timedelta(
-                seconds=self.config.timeout_duration
-            )
-            logger.warning(
-                f"Circuit breaker {self.name}: Service still failing, back to OPEN"
-            )
-        else:
-            # Increment failure count
-            self.failure_count += 1
-            self.last_failure_time = datetime.now()
-            
-            if self.failure_count >= self.config.fail_max:
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                # Failed in half-open, go back to open
                 self.state = CircuitState.OPEN
+                self.failure_count = 0
+                self.success_count = 0
+                self.last_failure_time = datetime.now()
                 self.next_attempt_time = datetime.now() + timedelta(
                     seconds=self.config.timeout_duration
                 )
                 logger.warning(
-                    f"Circuit breaker {self.name}: OPEN after {self.failure_count} failures. "
-                    f"Will retry after {self.config.timeout_duration}s"
+                    f"Circuit breaker {self.name}: Service still failing, back to OPEN"
                 )
+            else:
+                # Increment failure count
+                self.failure_count += 1
+                self.last_failure_time = datetime.now()
+                
+                if self.failure_count >= self.config.fail_max:
+                    self.state = CircuitState.OPEN
+                    self.next_attempt_time = datetime.now() + timedelta(
+                        seconds=self.config.timeout_duration
+                    )
+                    logger.warning(
+                        f"Circuit breaker {self.name}: OPEN after {self.failure_count} failures. "
+                        f"Will retry after {self.config.timeout_duration}s"
+                    )
     
     async def call(
         self,
@@ -167,8 +172,9 @@ class CircuitBreaker:
             raise
     
     def get_state(self) -> dict:
-        """Get current circuit breaker state for monitoring"""
-        return {
+        """Get current circuit breaker state (thread-safe snapshot)"""
+        with self._lock:
+            return {
             "name": self.name,
             "state": self.state.value,
             "failure_count": self.failure_count,

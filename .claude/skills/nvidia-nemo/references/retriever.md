@@ -30,8 +30,6 @@ Boost text question-and-answer retrieval performance, providing high-quality emb
 
 Enhance retrieval performance further with a fine-tuned reranking model, finding the most relevant passages to provide as context when querying a large language model (LLM).
 
-NeMo Retriever provides components for building data extraction and information retrieval pipelines. The pipeline extracts structured and unstructured data (ex. text, charts, tables), converts it to text, and filters out duplicates. A NeMo Retriever embedding NIM converts the chunks into embeddings and stores them in a vector database, accelerated by NVIDIA cuVS, for enhanced performance and speed of indexing and search. When a query is submitted, the system retrieves relevant information using vector similarity search, and then a NeMo Retriever reranking NIM reranks the results for accuracy. With the most pertinent information, an LLM NIM generates a response that’s informed, accurate, and contextually relevant. You can use various LLM NIM microservices from the NVIDIA API catalog to 
-
-*[Content truncated]*
+NeMo Retriever provides components for building data extraction and information retrieval pipelines. The pipeline extracts structured and unstructured data (ex. text, charts, tables), converts it to text, and filters out duplicates. A NeMo Retriever embedding NIM converts the chunks into embeddings and stores them in a vector database, accelerated by NVIDIA cuVS, for enhanced performance and speed of indexing and search. When a query is submitted, the system retrieves relevant information using vector similarity search, and then a NeMo Retriever reranking NIM reranks the results for accuracy. With the most pertinent information, an LLM NIM generates a response that's informed, accurate, and contextually relevant. You can use various LLM NIM microservices from the NVIDIA API catalog to generate responses for your RAG applications.
 
 ---

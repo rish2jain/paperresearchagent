@@ -4,7 +4,7 @@
 
 ---
 
-## ComputeConfigResponse
+## ComputeConfigResponse {#computeconfigresponse-canonical}
 
 **URL:** https://docs.aws.amazon.com/eks/latest/APIReference/API_ComputeConfigResponse.html#AmazonEKS-Type-ComputeConfigResponse-nodeRoleArn
 
@@ -29,7 +29,7 @@ For more information about using this API in one of the language-specific AWS SD
 
 ## VpcConfigRequest
 
-For VPC configuration details, see the canonical [VpcConfigRequest](https://docs.aws.amazon.com/eks/latest/APIReference/API_VpcConfigRequest.html) API reference or the VpcConfigRequest section below in this document.
+For VPC configuration details, see the [VpcConfigRequest section](#vpcconfigrequest-canonical) below.
 
 ---
 
@@ -114,26 +114,9 @@ eksctl create nodegroup \
 
 ---
 
-## ComputeConfigResponse
+## ComputeConfigResponse (Reference)
 
-**URL:** https://docs.aws.amazon.com/eks/latest/APIReference/API_ComputeConfigResponse.html#AmazonEKS-Type-ComputeConfigResponse-nodePools
-
-**Contents:**
-- ComputeConfigResponse
-- Contents
-- See Also
-
-Indicates the status of the request to update the compute capability of your EKS Auto Mode cluster.
-
-Indicates if the compute capability is enabled on your EKS Auto Mode cluster. If the compute capability is enabled, EKS Auto Mode will create and delete EC2 Managed Instances in your AWS account.
-
-Indicates the current configuration of node pools in your EKS Auto Mode cluster. For more information, see EKS Auto Mode Node Pools in the Amazon EKS User Guide.
-
-Type: Array of strings
-
-The ARN of the IAM Role EKS will assign to EC2 Managed Instances in your EKS Auto Mode cluster.
-
-For more information about using this API in one of the language-specific AWS SDKs, see the following:
+For complete ComputeConfigResponse API details, see the [canonical ComputeConfigResponse section](#computeconfigresponse-canonical) above.
 
 ---
 
@@ -206,7 +189,7 @@ Example 2 (unknown):
 
 ## VpcConfigRequest
 
-See the canonical [VpcConfigRequest API reference](https://docs.aws.amazon.com/eks/latest/APIReference/API_VpcConfigRequest.html) for complete details.
+For VPC configuration details, see the [VpcConfigRequest section](#vpcconfigrequest-canonical) below.
 
 ---
 
@@ -253,7 +236,7 @@ If your cluster was deployed before August 17, 2020, you must do a one-time upgr
 
 ## VpcConfigRequest
 
-See the canonical [VpcConfigRequest API reference](https://docs.aws.amazon.com/eks/latest/APIReference/API_VpcConfigRequest.html) for complete details.
+For VPC configuration details, see the [VpcConfigRequest section](#vpcconfigrequest-canonical) below.
 
 ---
 
@@ -395,7 +378,7 @@ If your cluster was deployed before August 17, 2020, you must do a one-time upgr
 
 ## VpcConfigRequest
 
-See the canonical [VpcConfigRequest API reference](https://docs.aws.amazon.com/eks/latest/APIReference/API_VpcConfigRequest.html) for complete details.
+For VPC configuration details, see the [VpcConfigRequest section](#vpcconfigrequest-canonical) below.
 
 ---
 
@@ -438,7 +421,7 @@ Even though Pods deployed to subnets specified for secondary network interfaces 
 
 ---
 
-## VpcConfigRequest
+## VpcConfigRequest {#vpcconfigrequest-canonical}
 
 **URL:** https://docs.aws.amazon.com/eks/latest/APIReference/API_VpcConfigRequest.html
 
@@ -1276,7 +1259,7 @@ CreateNodegroup
 
 ## VpcConfigRequest
 
-See the canonical [VpcConfigRequest API reference](https://docs.aws.amazon.com/eks/latest/APIReference/API_VpcConfigRequest.html) for complete details.
+For VPC configuration details, see the [VpcConfigRequest section](#vpcconfigrequest-canonical) below.
 
 ---
 

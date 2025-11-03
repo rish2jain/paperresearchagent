@@ -100,7 +100,6 @@ def test_performance_characteristics():
     medium_dataset = generate_mock_papers(50)
     large_dataset = generate_mock_papers(100)
 
-    import sys
 
     small_size = sys.getsizeof(small_dataset)
     medium_size = sys.getsizeof(medium_dataset)

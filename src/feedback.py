@@ -5,6 +5,7 @@ Implements feedback loops for learning from user validation
 
 import json
 import logging
+import threading
 from datetime import datetime
 from typing import Dict, Optional, List
 from dataclasses import dataclass, asdict
@@ -50,6 +51,7 @@ class FeedbackCollector:
             "FEEDBACK_STORAGE_PATH",
             "Temp/feedback.json"
         )
+        self._lock = threading.Lock()
         self.feedback_data: List[Dict] = []
         self._load_feedback()
     
@@ -67,11 +69,23 @@ class FeedbackCollector:
     def _save_feedback(self):
         """Save feedback to storage"""
         try:
-            os.makedirs(os.path.dirname(self.storage_path), exist_ok=True)
+            # Validate storage path
+            if not self.storage_path or not isinstance(self.storage_path, str):
+                raise ValueError(f"Invalid storage_path: {self.storage_path}")
+            
+            parent = os.path.dirname(self.storage_path)
+            if not parent:
+                # No directory component, use current directory
+                parent = os.getcwd()
+            
+            # Create parent directory if it exists and is valid
+            if parent and os.path.isabs(parent) or parent != self.storage_path:
+                os.makedirs(parent, exist_ok=True)
+            
             with open(self.storage_path, 'w') as f:
                 json.dump(self.feedback_data, f, indent=2)
         except Exception as e:
-            logger.error(f"Failed to save feedback: {e}")
+            logger.error(f"Failed to save feedback (storage_path: {self.storage_path}): {e}")
     
     def record_feedback(
         self,
@@ -94,8 +108,10 @@ class FeedbackCollector:
         
         feedback_dict = asdict(feedback)
         feedback_dict['feedback_type'] = feedback.feedback_type.value
-        self.feedback_data.append(feedback_dict)
-        self._save_feedback()
+        
+        with self._lock:
+            self.feedback_data.append(feedback_dict)
+            self._save_feedback()
         
         logger.info(f"Recorded feedback: {feedback_type.value} for synthesis {synthesis_id}")
         return feedback_dict

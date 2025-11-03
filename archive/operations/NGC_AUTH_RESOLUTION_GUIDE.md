@@ -1,7 +1,9 @@
 # NGC Authentication Resolution Guide
 
-**Issue Date**: 2025-01-15  
+**Issue Date**: 2025-11-03 (Archived: original issue date 2025-01-15)  
 **Status**: Two authentication issues identified
+
+*Note: Document created on 2025-01-15 — retained for historical reference. Date updated to reflect current archive status.*
 
 ## Problem Summary
 

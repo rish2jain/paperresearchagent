@@ -88,9 +88,10 @@ spec:
           mountPath: /dev/shm
 
       securityContext:
-        fsGroup: 0
-        runAsUser: 0
-        runAsGroup: 0
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
 
       volumes:
       - name: nim-cache

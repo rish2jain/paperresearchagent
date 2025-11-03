@@ -171,13 +171,14 @@ class RateLimiter:
             # Allow request (within burst capacity)
             limit_data['requests'].append(current_time)
             # Calculate remaining based on whether burst is being used
+            # Match Redis behavior: remaining = max(0, burst_limit - current_count - 1)
+            remaining = max(0, burst_limit - current_count - 1)
             if current_count >= limit:
-                # Using burst capacity - set remaining to 0
-                remaining = 0
+                # Using burst capacity
                 logger.debug(f"Rate limit burst capacity used: {current_count}/{burst_limit} for {identifier}")
             else:
                 # Within regular limit
-                remaining = max(0, limit - current_count - 1)
+                logger.debug(f"Rate limit within regular limit: {current_count}/{limit} for {identifier}")
             reset_time = int(current_time + window)
             
             return True, remaining, reset_time

@@ -124,10 +124,22 @@ class CollectiveIntelligence:
     
     def __init__(self, storage_path: Optional[str] = None):
         import os
-        self.storage_path = storage_path or os.getenv(
-            "COLLECTIVE_INTELLIGENCE_PATH",
-            "Temp/collective_intelligence.json"
-        )
+        import tempfile
+        
+        if storage_path is None:
+            storage_path = os.getenv(
+                "COLLECTIVE_INTELLIGENCE_PATH",
+                os.path.join(tempfile.gettempdir(), "collective_intelligence.json")
+            )
+        
+        # Normalize and absolute the storage path
+        self.storage_path = os.path.abspath(os.path.expanduser(storage_path))
+        
+        # Ensure storage directory exists
+        storage_dir = os.path.dirname(self.storage_path)
+        if storage_dir:
+            os.makedirs(storage_dir, exist_ok=True)
+        
         self.collective_data = []
         self._load_data()
     
