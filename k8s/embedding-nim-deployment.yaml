@@ -1,0 +1,125 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embedding-nim
+  namespace: research-ops
+  labels:
+    app: embedding-nim
+    component: embedding-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: embedding-nim
+  template:
+    metadata:
+      labels:
+        app: embedding-nim
+        component: embedding-inference
+    spec:
+      # Can run on GPU or CPU, GPU preferred for speed
+      nodeSelector:
+        node.kubernetes.io/instance-type: g5.xlarge
+
+      containers:
+      - name: embedding-nim
+        image: nvcr.io/nim/nvidia/nv-embedqa-e5-v5:1.0.0
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8001
+          name: http
+          protocol: TCP
+
+        env:
+        - name: NGC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nvidia-ngc-secret
+              key: NGC_API_KEY
+
+        - name: NIM_CACHE_PATH
+          value: "/opt/nim/.cache"
+
+        - name: NIM_SERVER_PORT
+          value: "8001"
+
+        - name: NIM_JSONL_LOGGING
+          value: "1"
+
+        # Embedding-specific configs
+        - name: MAX_BATCH_SIZE
+          value: "32"
+
+        - name: MAX_CLIENT_BATCH_SIZE
+          value: "128"
+
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "2"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "16Gi"
+            cpu: "4"
+            nvidia.com/gpu: "1"
+
+        livenessProbe:
+          httpGet:
+            path: /v1/health/live
+            port: 8001
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+
+        readinessProbe:
+          httpGet:
+            path: /v1/health/ready
+            port: 8001
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+
+        volumeMounts:
+        - name: nim-cache
+          mountPath: /opt/nim/.cache
+
+      volumes:
+      - name: nim-cache
+        persistentVolumeClaim:
+          claimName: embedding-nim-cache-pvc
+
+      imagePullSecrets:
+      - name: ngc-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: embedding-nim
+  namespace: research-ops
+  labels:
+    app: embedding-nim
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8001
+    targetPort: 8001
+    protocol: TCP
+    name: http
+  selector:
+    app: embedding-nim
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: embedding-nim-cache-pvc
+  namespace: research-ops
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 20Gi
+  storageClassName: gp3

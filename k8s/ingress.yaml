@@ -1,0 +1,40 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: research-ops-ingress
+  namespace: research-ops
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: research-ops.local  # Update with your domain
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web-ui
+            port:
+              number: 8501
+      - path: /api
+        pathType: Prefix
+        backend:
+          service:
+            name: agent-orchestrator
+            port:
+              number: 8080
+---
+# For production, add basic auth:
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: basic-auth
+#   namespace: research-ops
+# type: Opaque
+# data:
+#   # Username: demo, Password: nvidia-aws-2025
+#   # Generate with: htpasswd -nb demo nvidia-aws-2025 | base64
+#   auth: ZGVtbzokYXByMSRILk52RVovYSRVSnJCY2QvV2J5SDhOY2VjYmJpWXYw

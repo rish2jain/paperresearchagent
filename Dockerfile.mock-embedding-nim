@@ -1,0 +1,17 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install dependencies
+RUN pip install --no-cache-dir fastapi uvicorn numpy
+
+# Copy mock service
+COPY mock_services/mock_embedding_nim.py /app/
+
+# Expose port
+EXPOSE 8001
+
+# Run mock service
+CMD ["python", "mock_embedding_nim.py"]
+

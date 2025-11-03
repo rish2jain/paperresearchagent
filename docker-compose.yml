@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # Agent Orchestrator API Service
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    container_name: research-ops-orchestrator
+    ports:
+      - "8080:8080"
+    environment:
+      # NIM URLs - point to actual NIM services or mock services
+      REASONING_NIM_URL: ${REASONING_NIM_URL:-http://reasoning-nim:8000}
+      EMBEDDING_NIM_URL: ${EMBEDDING_NIM_URL:-http://embedding-nim:8001}
+      # API Configuration
+      API_HOST: "0.0.0.0"
+      API_PORT: "8080"
+      LOG_LEVEL: "info"
+      # Agent Configuration
+      RELEVANCE_THRESHOLD: "0.7"
+      MAX_PAPERS_PER_SEARCH: "20"
+      MAX_CONCURRENT_ANALYSES: "5"
+    volumes:
+      - ./src:/app/src:ro  # Mount source for development
+    depends_on:
+      - reasoning-nim
+      - embedding-nim
+    networks:
+      - research-ops-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Web UI Service
+  web-ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: research-ops-web-ui
+    ports:
+      - "8501:8501"
+    environment:
+      # Point to orchestrator service
+      AGENT_ORCHESTRATOR_URL: http://orchestrator:8080
+    volumes:
+      - ./src/web_ui.py:/app/web_ui.py:ro  # Mount for development
+    depends_on:
+      - orchestrator
+    networks:
+      - research-ops-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8501/_stcore/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+
+  # Mock Reasoning NIM Service (for testing without actual NIMs)
+  reasoning-nim:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-reasoning-nim
+    container_name: research-ops-reasoning-nim-mock
+    ports:
+      - "8000:8000"
+    networks:
+      - research-ops-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/v1/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+  # Mock Embedding NIM Service (for testing without actual NIMs)
+  embedding-nim:
+    build:
+      context: .
+      dockerfile: Dockerfile.mock-embedding-nim
+    container_name: research-ops-embedding-nim-mock
+    ports:
+      - "8001:8001"
+    networks:
+      - research-ops-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/v1/health/live')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+
+networks:
+  research-ops-network:
+    driver: bridge
+

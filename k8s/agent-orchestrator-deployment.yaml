@@ -1,0 +1,122 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-orchestrator
+  namespace: research-ops
+  labels:
+    app: agent-orchestrator
+    component: agentic-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-orchestrator
+  template:
+    metadata:
+      labels:
+        app: agent-orchestrator
+        component: agentic-system
+    spec:
+      containers:
+      - name: orchestrator
+        image: YOUR_REGISTRY/research-ops-agent:latest
+        imagePullPolicy: Always
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: false
+          seccompProfile:
+            type: RuntimeDefault
+
+        ports:
+        - containerPort: 8080
+          name: http
+
+        env:
+        # NIM endpoints (internal cluster DNS)
+        - name: REASONING_NIM_URL
+          value: "http://reasoning-nim.research-ops.svc.cluster.local:8000"
+
+        - name: EMBEDDING_NIM_URL
+          value: "http://embedding-nim.research-ops.svc.cluster.local:8001"
+
+        - name: VECTOR_DB_URL
+          value: "http://qdrant.research-ops.svc.cluster.local:6333"
+
+        # Agent configuration
+        - name: MAX_PAPERS_PER_SEARCH
+          value: "10"
+
+        - name: MAX_CONCURRENT_ANALYSES
+          value: "5"
+
+        - name: ENABLE_COST_TRACKING
+          value: "true"
+
+        # AWS credentials for S3 storage
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: AWS_ACCESS_KEY_ID
+
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: AWS_SECRET_ACCESS_KEY
+
+        - name: AWS_DEFAULT_REGION
+          valueFrom:
+            secretKeyRef:
+              name: aws-credentials
+              key: AWS_DEFAULT_REGION
+
+        - name: S3_BUCKET_NAME
+          value: "research-ops-storage"
+
+        resources:
+          requests:
+            memory: "4Gi"
+            cpu: "2"
+          limits:
+            memory: "8Gi"
+            cpu: "4"
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 30
+          periodSeconds: 30
+
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-orchestrator
+  namespace: research-ops
+  labels:
+    app: agent-orchestrator
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  selector:
+    app: agent-orchestrator

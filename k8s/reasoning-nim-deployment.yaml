@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reasoning-nim
+  namespace: research-ops
+  labels:
+    app: reasoning-nim
+    component: llm-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: reasoning-nim
+  template:
+    metadata:
+      labels:
+        app: reasoning-nim
+        component: llm-inference
+    spec:
+      # Node selector for GPU instances
+      nodeSelector:
+        node.kubernetes.io/instance-type: g5.2xlarge
+
+      containers:
+      - name: reasoning-nim
+        image: nvcr.io/nim/meta/llama-3.1-nemotron-nano-8b-instruct:1.0.0
+        imagePullPolicy: Always
+
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+
+        env:
+        - name: NGC_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: nvidia-ngc-secret
+              key: NGC_API_KEY
+
+        - name: NIM_CACHE_PATH
+          value: "/opt/nim/.cache"
+
+        - name: NIM_SERVER_PORT
+          value: "8000"
+
+        - name: NIM_JSONL_LOGGING
+          value: "1"
+
+        # Resource configuration
+        resources:
+          requests:
+            memory: "16Gi"
+            cpu: "4"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "24Gi"
+            cpu: "8"
+            nvidia.com/gpu: "1"
+
+        # Health checks
+        livenessProbe:
+          httpGet:
+            path: /v1/health/live
+            port: 8000
+          initialDelaySeconds: 120
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+
+        readinessProbe:
+          httpGet:
+            path: /v1/health/ready
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+
+        volumeMounts:
+        - name: nim-cache
+          mountPath: /opt/nim/.cache
+        - name: shm
+          mountPath: /dev/shm
+
+      volumes:
+      - name: nim-cache
+        persistentVolumeClaim:
+          claimName: reasoning-nim-cache-pvc
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: 8Gi
+
+      # Image pull secrets for NGC
+      imagePullSecrets:
+      - name: ngc-secret
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reasoning-nim
+  namespace: research-ops
+  labels:
+    app: reasoning-nim
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8000
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  selector:
+    app: reasoning-nim
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: reasoning-nim-cache-pvc
+  namespace: research-ops
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: gp3
