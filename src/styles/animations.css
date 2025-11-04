@@ -123,3 +123,99 @@
 .progress-fill {
     animation: progressFill 0.5s ease-out;
 }
+
+/* Loading spinner for agent status */
+
+.agent-loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #4CAF50;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-right: 8px;
+    vertical-align: middle;
+}
+
+/* Stage indicator animation */
+@keyframes stageComplete {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.stage-complete {
+    animation: stageComplete 0.5s ease-out;
+}
+
+/* Loading pulse for status text */
+@keyframes loadingPulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.loading-status {
+    animation: loadingPulse 2s ease-in-out infinite;
+}
+
+/* Agent activity indicator */
+.agent-activity-indicator {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #4CAF50;
+    margin-right: 8px;
+    animation: pulse 2s infinite;
+}
+
+.agent-activity-indicator.active {
+    background-color: #FFA726;
+    animation: pulse 1s infinite;
+}
+
+.agent-activity-indicator.complete {
+    background-color: #4CAF50;
+    animation: none;
+}
+
+/* Progress stage badges */
+.progress-stage {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-right: 8px;
+    margin-bottom: 8px;
+    transition: all 0.3s ease;
+}
+
+.progress-stage.pending {
+    background-color: #e0e0e0;
+    color: #666;
+}
+
+.progress-stage.active {
+    background-color: #FFA726;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+.progress-stage.complete {
+    background-color: #4CAF50;
+    color: white;
+}

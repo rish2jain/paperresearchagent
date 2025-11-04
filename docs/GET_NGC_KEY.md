@@ -1,6 +1,8 @@
 # Get Your NGC API Key
 
-Since your docker config isn't showing the key, let's get it directly from NGC:
+This guide explains how to obtain and configure your NVIDIA NGC API key for ResearchOps Agent.
+
+**Related:** See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#problem-ngc-api-key-issues-401403-errors) for fixing NGC key issues.
 
 ## Option 1: From NGC Website (Recommended)
 

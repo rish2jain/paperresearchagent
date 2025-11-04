@@ -1,5 +1,7 @@
 # Testing Guide: Live vs Mock Services
 
+**Last Updated:** 2025-01-15
+
 ## Overview
 
 ResearchOps Agent can be tested with two different setups:

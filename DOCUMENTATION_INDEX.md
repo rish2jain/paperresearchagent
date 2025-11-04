@@ -1,6 +1,8 @@
 # 📚 ResearchOps Agent - Documentation Index
 
 **Last Updated:** 2025-01-15  
+**Status:** Documentation consolidated and archived  
+**Archive Date:** 2025-01-15  
 **Quick Navigation Guide**
 
 ---
@@ -42,7 +44,7 @@
 | **[STATUS.md](STATUS.md)** | Current project status, features, capabilities | Everyone |
 | **[QUICK_START.md](QUICK_START.md)** | Fast 3-day setup timeline | New users |
 | **[HACKATHON_SETUP_GUIDE.md](HACKATHON_SETUP_GUIDE.md)** | Complete hackathon setup and submission | Hackathon participants |
-| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Kubernetes deployment guide | DevOps |
+| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Kubernetes deployment guide (includes deployment success summary) | DevOps |
 | **[TESTING_GUIDE.md](TESTING_GUIDE.md)** | Testing with mock vs live services | Developers, Users |
 | **[DOCKER_TESTING.md](DOCKER_TESTING.md)** | Docker-based testing | Developers |
 
@@ -55,6 +57,7 @@
 | **[docs/README.md](docs/README.md)** | Documentation index | Everyone |
 | **[docs/PAPER_SOURCES.md](docs/PAPER_SOURCES.md)** | 7 academic database integration | Developers |
 | **[docs/API_KEYS_SETUP.md](docs/API_KEYS_SETUP.md)** | API key configuration | Developers, DevOps |
+| **[docs/GET_NGC_KEY.md](docs/GET_NGC_KEY.md)** | NVIDIA NGC API key setup | Developers, DevOps |
 | **[docs/Architecture_Diagrams.md](docs/Architecture_Diagrams.md)** | System architecture diagrams | Developers, Architects |
 | **[docs/AWS_SETUP_GUIDE.md](docs/AWS_SETUP_GUIDE.md)** | AWS credentials setup | DevOps |
 | **[docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)** | Production deployment procedures | DevOps |
@@ -79,12 +82,17 @@
 ### Archive (`archive/`)
 
 Historical documentation preserved for reference:
-- Development progress tracking
-- Implementation plans and summaries
-- Past deployment troubleshooting (in `archive/operations/`)
-- Historical status reports
 
-**See:** [archive/README.md](archive/README.md) for details
+| Directory | Contents |
+|-----------|----------|
+| `archive/status_reports/` | Phase completion docs, implementation summaries, test reports (including FINAL_TESTING_REPORT.md, TESTING_RESULTS_SUMMARY.md, USER_TESTING_PLAN.md, BROWSER_UI_TEST_REPORT.md, CODE_REVIEW_ENHANCEMENTS.md, ENHANCEMENTS_COMPLETE.md, IMPLEMENTATION_SUMMARY.md) |
+| `archive/root_docs/` | Obsolete architecture reviews, technical reviews, action items |
+| `archive/security_docs/` | Security audit reports, secrets removal guides |
+| `archive/operations/` | Historical deployment troubleshooting, K8S fixes, Docker fixes, operations docs |
+| `archive/claudedocs/` | UX design documentation and implementation guides |
+| `archive/temp_scripts/` | Temporary scripts, test files, backup files, debugging scripts |
+
+**See:** [archive/README.md](archive/README.md) and [archive/ARCHIVE_INDEX.md](archive/ARCHIVE_INDEX.md) for details
 
 ---
 
@@ -120,9 +128,9 @@ Historical documentation preserved for reference:
 
 ## 📊 Documentation Statistics
 
-- **Total Documentation Files**: ~63 markdown files
-- **Active Documentation**: ~24 files (root + docs/ + k8s/)
-- **Archived Documentation**: ~39 files (archive/ + archive/operations/)
+- **Total Documentation Files**: ~75+ markdown files
+- **Active Documentation**: ~25 files (root + docs/ + k8s/ + hackathon_submission/)
+- **Archived Documentation**: ~50+ files (archive/ + archive/operations/ + archive/claudedocs/ + archive/temp_scripts/ + archive/status_reports/)
 - **Last Major Consolidation**: 2025-01-15
 
 ---
@@ -132,10 +140,20 @@ Historical documentation preserved for reference:
 **Last Review:** 2025-01-15
 
 Documentation is actively maintained. Key updates:
+- ✅ Archived obsolete root-level documentation (BROWSER_UI_TEST_REPORT.md, CODE_REVIEW_ENHANCEMENTS.md, ENHANCEMENTS_COMPLETE.md, IMPLEMENTATION_SUMMARY.md) (2025-01-15)
+- ✅ Consolidated DEPLOYMENT.md with deployment success summary (2025-01-15)
+- ✅ Archived historical fix documentation (DOCKER_FIX_SUMMARY.md, K8S_IMPROVEMENTS_APPLIED.md, K8S_PENDING_PODS_FIX.md) (2025-01-15)
+- ✅ Archived testing reports (FINAL_TESTING_REPORT.md, TESTING_RESULTS_SUMMARY.md, USER_TESTING_PLAN.md, BROWSER_UI_TEST_REPORT.md) (2025-01-15)
+- ✅ Moved HACKATHON_DEMO_CHECKLIST.md to hackathon_submission/ (2025-01-15)
+- ✅ Archived temporary scripts and test files to archive/temp_scripts/ (2025-01-15)
+- ✅ Removed .bak backup files (2025-01-15)
 - ✅ Consolidated and archived obsolete documentation (2025-01-15)
-- ✅ Moved historical troubleshooting files to `archive/operations/` (2025-01-15)
+- ✅ Moved historical status reports, completion docs, and phase summaries to `archive/` (2025-01-15)
+- ✅ Archived security audit docs and secrets removal guides (2025-01-15)
+- ✅ Moved UX documentation (`claudedocs/`) to archive (2025-01-15)
+- ✅ Integrated NGC key troubleshooting into main troubleshooting guide (2025-01-15)
+- ✅ Moved `GET_NGC_KEY.md` to `docs/` directory (2025-01-15)
 - ✅ Updated documentation structure and index (2025-01-15)
-- ✅ Cleaned up temporary and duplicate files (2025-01-15)
 
 ---
 

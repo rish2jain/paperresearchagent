@@ -8,6 +8,9 @@ metadata:
     component: llm-inference
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: reasoning-nim
@@ -51,15 +54,15 @@ spec:
         - name: QUANTIZATION
           value: "int8"  # INT8 quantization for 2x speedup, minimal accuracy loss
 
-        # Resource configuration (increased for TensorRT engine compilation)
+        # Resource configuration (optimized for 2-node setup)
         resources:
           requests:
-            memory: "20Gi"
+            memory: "18Gi"
             cpu: "4"
             nvidia.com/gpu: "1"
           limits:
-            memory: "30Gi"  # Increased for TensorRT engine build
-            cpu: "8"
+            memory: "20Gi"  # Optimized for 2-node capacity
+            cpu: "5"        # Optimized to fit within node capacity (7.91 allocatable)
             nvidia.com/gpu: "1"
 
         # Health checks - Extended delays for TensorRT engine compilation (10+ minutes)

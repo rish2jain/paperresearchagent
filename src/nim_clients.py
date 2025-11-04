@@ -16,6 +16,11 @@ from tenacity import (
     before_sleep_log
 )
 import time
+from constants import (
+    NIM_CONNECT_TIMEOUT_SECONDS,
+    NIM_SOCK_READ_TIMEOUT_SECONDS,
+    DEFAULT_TIMEOUT_SECONDS
+)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -53,9 +58,9 @@ class ReasoningNIMClient:
     """
 
     DEFAULT_TIMEOUT = aiohttp.ClientTimeout(
-        total=60,      # Total timeout for entire request
-        connect=10,    # Timeout for connection establishment
-        sock_read=30   # Timeout for reading response
+        total=DEFAULT_TIMEOUT_SECONDS,         # Total timeout for entire request
+        connect=NIM_CONNECT_TIMEOUT_SECONDS,   # Timeout for connection establishment
+        sock_read=NIM_SOCK_READ_TIMEOUT_SECONDS  # Timeout for reading response (now 60s)
     )
 
     def __init__(self, base_url: str = None, timeout: Optional[aiohttp.ClientTimeout] = None):
@@ -115,7 +120,7 @@ class ReasoningNIMClient:
         url = f"{self.base_url}/v1/completions"
 
         payload = {
-            "model": "meta/llama-3.1-nemotron-nano-8b-instruct",
+            "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
             "prompt": prompt,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -238,7 +243,7 @@ class ReasoningNIMClient:
         url = f"{self.base_url}/v1/chat/completions"
 
         payload = {
-            "model": "meta/llama-3.1-nemotron-nano-8b-instruct",
+            "model": "nvidia/llama-3.1-nemotron-nano-8b-v1",
             "messages": messages,
             "max_tokens": max_tokens,
             "temperature": temperature,
@@ -309,16 +314,26 @@ JSON Output:
             max_tokens=1024
         )
 
-        # Parse JSON from response (simplified - add robust parsing)
+        # Parse JSON from response - extract first complete JSON object only
         import json
         try:
-            # Find JSON in response
+            # Find start of JSON
             start_idx = response.find('{')
-            end_idx = response.rfind('}') + 1
-            json_str = response[start_idx:end_idx]
-            return json.loads(json_str)
-        except Exception as e:
+            if start_idx == -1:
+                logger.error("No JSON object found in response")
+                return {}
+
+            # Use JSONDecoder to parse just the first complete JSON object
+            # This handles cases where there's trailing text or multiple objects
+            decoder = json.JSONDecoder()
+            obj, end_idx = decoder.raw_decode(response, start_idx)
+            return obj
+        except json.JSONDecodeError as e:
             logger.error(f"Failed to parse structured output: {e}")
+            logger.debug(f"Response snippet: {response[:500]}...")
+            return {}
+        except Exception as e:
+            logger.error(f"Unexpected error parsing structured output: {e}")
             return {}
 
 
@@ -329,9 +344,9 @@ class EmbeddingNIMClient:
     """
 
     DEFAULT_TIMEOUT = aiohttp.ClientTimeout(
-        total=60,
-        connect=10,
-        sock_read=30
+        total=DEFAULT_TIMEOUT_SECONDS,
+        connect=NIM_CONNECT_TIMEOUT_SECONDS,
+        sock_read=NIM_SOCK_READ_TIMEOUT_SECONDS
     )
 
     def __init__(self, base_url: str = None, timeout: Optional[aiohttp.ClientTimeout] = None):
@@ -494,9 +509,31 @@ class EmbeddingNIMClient:
         """
         all_embeddings = []
 
+        # Filter out None and empty strings before processing
+        # Store original indices to map results back correctly
+        # Also truncate texts to stay within NIM's 512 token limit
+        # Using ~1800 chars as approximation for 450 tokens (safe margin)
+        MAX_CHARS = 1800
+
+        valid_texts = []
+        valid_indices = []
+        for idx, text in enumerate(texts):
+            if text and isinstance(text, str) and text.strip():
+                stripped = text.strip()
+                # Truncate if too long
+                if len(stripped) > MAX_CHARS:
+                    logger.debug(f"Truncating text from {len(stripped)} to {MAX_CHARS} chars")
+                    stripped = stripped[:MAX_CHARS]
+                valid_texts.append(stripped)
+                valid_indices.append(idx)
+
+        if not valid_texts:
+            logger.warning("No valid texts to embed in batch")
+            return [[] for _ in texts]  # Return empty embeddings for all inputs
+        
         # Process in batches
-        for i in range(0, len(texts), batch_size):
-            batch = texts[i:i + batch_size]
+        for i in range(0, len(valid_texts), batch_size):
+            batch = valid_texts[i:i + batch_size]
 
             url = f"{self.base_url}/v1/embeddings"
 
@@ -541,8 +578,13 @@ class EmbeddingNIMClient:
             except Exception as e:
                 logger.error(f"Batch embedding unexpected error: {e}")
                 raise
-
-        return all_embeddings
+        
+        # Map results back to original positions (with None/empty strings getting empty embeddings)
+        result_embeddings = [[] for _ in range(len(texts))]
+        for valid_idx, embedding in zip(valid_indices, all_embeddings):
+            result_embeddings[valid_idx] = embedding
+        
+        return result_embeddings
 
     @staticmethod
     def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
@@ -561,10 +603,19 @@ class EmbeddingNIMClient:
         v1 = np.array(vec1)
         v2 = np.array(vec2)
 
-        dot_product = np.dot(v1, v2)
+        # Handle empty vectors - return 0 similarity
+        if v1.size == 0 or v2.size == 0:
+            logger.warning(f"Empty vector in cosine similarity: v1.size={v1.size}, v2.size={v2.size}")
+            return 0.0
+
+        # Handle zero vectors - return 0 similarity
         norm1 = np.linalg.norm(v1)
         norm2 = np.linalg.norm(v2)
+        if norm1 == 0 or norm2 == 0:
+            logger.warning(f"Zero-norm vector in cosine similarity: norm1={norm1}, norm2={norm2}")
+            return 0.0
 
+        dot_product = np.dot(v1, v2)
         similarity = dot_product / (norm1 * norm2)
 
         # Normalize to 0-1 range

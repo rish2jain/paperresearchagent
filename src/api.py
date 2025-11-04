@@ -1,13 +1,15 @@
 """
-FastAPI REST API for ResearchOps Agent
+FastAPI REST API for Agentic Researcher
 Provides HTTP endpoints for the multi-agent research synthesis system
 """
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from starlette.requests import Request as StarletteRequest
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, Response
+from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
-from pydantic import BaseModel, Field
+from middleware import RequestIDMiddleware, RequestSizeMiddleware, ErrorHandlerMiddleware
+from pydantic import BaseModel, Field, model_validator
 from typing import Dict, List, Optional, Any
 import asyncio
 import time
@@ -17,13 +19,31 @@ from datetime import datetime
 import json
 
 from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
-from agents import ResearchOpsAgent, ResearchQuery
+from agents import ResearchOpsAgent, ResearchQuery, Synthesis
+from incremental_synthesizer import IncrementalSynthesizer
 from input_sanitization import (
     sanitize_research_query,
     validate_max_papers,
     sanitize_year,
-    ValidationError,
+    ValidationError as InputValidationError,
 )
+from exceptions import (
+    ResearchOpsError,
+    NIMServiceError,
+    ValidationError,
+    PaperSourceError,
+    CircuitBreakerOpenError,
+    ConfigurationError,
+)
+from constants import (
+    DEFAULT_CORS_ORIGINS,
+    CORS_MAX_AGE_SECONDS,
+    MAX_REQUEST_SIZE_BYTES,
+    HEALTH_CHECK_TIMEOUT_SECONDS,
+    HEALTH_CHECK_CONNECT_TIMEOUT_SECONDS,
+    HEALTH_CACHE_TTL_SECONDS,
+)
+from health_cache import get_health_cache
 
 # Import export functions
 try:
@@ -36,20 +56,31 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(
-    title="ResearchOps Agent API",
+    title="Agentic Researcher API",
     description="Multi-agent AI system for automated literature review synthesis using NVIDIA NIMs",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
 )
 
-# CORS middleware for web UI
+# Add middleware (order matters - error handler should be last)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(RequestSizeMiddleware)
+app.add_middleware(ErrorHandlerMiddleware)
+
+# CORS middleware for web UI - environment-based configuration
+cors_origins_env = os.getenv("CORS_ORIGINS", ",".join(DEFAULT_CORS_ORIGINS))
+cors_origins = (
+    cors_origins_env.split(",") if cors_origins_env != "*" else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify exact origins
+    allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "X-Request-ID"],
+    expose_headers=["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "X-Request-ID"],
+    max_age=CORS_MAX_AGE_SECONDS,
 )
 
 # Store for in-progress and completed research sessions
@@ -81,7 +112,7 @@ else:
 
 # Middleware for metrics and auth
 @app.middleware("http")
-async def metrics_and_auth_middleware(request: Request, call_next):
+async def metrics_and_auth_middleware(request: StarletteRequest, call_next):
     """Middleware for metrics collection and rate limiting"""
     start_time = time.time()
 
@@ -173,6 +204,16 @@ class ResearchRequest(BaseModel):
         default=False, description="Prioritize recent papers (last 3 years)"
     )
 
+    @model_validator(mode='after')
+    def validate_date_range(self):
+        """Validate that end_year is >= start_year when both are provided"""
+        if self.end_year is not None and self.start_year is not None:
+            if self.end_year < self.start_year:
+                raise ValueError(
+                    f"end_year ({self.end_year}) must be greater than or equal to start_year ({self.start_year})"
+                )
+        return self
+
     class Config:
         schema_extra = {
             "example": {
@@ -248,25 +289,44 @@ class ErrorResponse(BaseModel):
     timestamp: str
 
 
-# Health check endpoint
+# Health check endpoint with caching
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """
     Health check endpoint to verify service is running
 
     Returns service status and availability of NIMs
+    Uses caching to reduce latency for repeated checks
     """
 
-    async def check_nim_health(base_url: str) -> bool:
-        """Check if NIM is actually responding"""
+    health_cache = get_health_cache(ttl_seconds=HEALTH_CACHE_TTL_SECONDS)
+
+    async def check_nim_health(base_url: str, service_name: str) -> bool:
+        """Check if NIM is actually responding, with caching"""
+        # Check cache first
+        cached_status = health_cache.get(service_name)
+        if cached_status is not None:
+            logger.debug(f"Health cache hit for {service_name}: {cached_status}")
+            return cached_status
+        
+        # Cache miss - check actual health
         try:
             import aiohttp
 
-            timeout = aiohttp.ClientTimeout(total=5)  # Quick check
+            timeout = aiohttp.ClientTimeout(
+                total=HEALTH_CHECK_TIMEOUT_SECONDS,
+                connect=HEALTH_CHECK_CONNECT_TIMEOUT_SECONDS
+            )
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"{base_url}/v1/health/live") as response:
-                    return response.status == 200
-        except:
+                    status = response.status == 200
+                    # Cache the result
+                    health_cache.set(service_name, status)
+                    return status
+        except Exception as e:
+            logger.debug(f"Health check failed for {service_name}: {e}")
+            # Cache negative result too
+            health_cache.set(service_name, False)
             return False
 
     # Check actual NIM availability
@@ -277,14 +337,14 @@ async def health_check():
         "EMBEDDING_NIM_URL", "http://embedding-nim.research-ops.svc.cluster.local:8001"
     )
 
-    reasoning_available = await check_nim_health(reasoning_nim_url)
-    embedding_available = await check_nim_health(embedding_nim_url)
+    reasoning_available = await check_nim_health(reasoning_nim_url, "reasoning_nim")
+    embedding_available = await check_nim_health(embedding_nim_url, "embedding_nim")
 
     return {
         "status": "healthy"
         if (reasoning_available and embedding_available)
         else "degraded",
-        "service": "research-ops-agent",
+        "service": "agentic-researcher",
         "version": "1.0.0",
         "timestamp": datetime.now().isoformat(),
         "nims_available": {
@@ -416,7 +476,10 @@ async def prometheus_metrics():
     },
     tags=["Research"],
 )
-async def research(request: ResearchRequest):
+async def research(
+    request: ResearchRequest,
+    http_request: Request = None
+):
     """
     Execute research synthesis workflow
 
@@ -448,6 +511,18 @@ async def research(request: ResearchRequest):
     start_time = time.time()
 
     try:
+        # Validate date range (additional validation beyond Pydantic)
+        if request.start_year is not None and request.end_year is not None:
+            if request.end_year < request.start_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "Invalid date range",
+                        "message": f"end_year ({request.end_year}) must be >= start_year ({request.start_year})",
+                        "timestamp": datetime.now().isoformat(),
+                    },
+                )
+        
         # Validate input
         validated = ResearchQuery(query=request.query, max_papers=request.max_papers)
 
@@ -620,38 +695,102 @@ async def research(request: ResearchRequest):
                 except Exception as e:
                     logger.warning(f"Date filtering failed: {e}")
 
+        except (NIMServiceError, CircuitBreakerOpenError) as e:
+            # NIM service errors - graceful degradation to demo mode
+            logger.warning(
+                f"⚠️ NIM services unavailable ({type(e).__name__}), "
+                f"falling back to demo mode for query: {validated.query}",
+                extra={
+                    "error_type": type(e).__name__,
+                    "query": validated.query[:100],
+                    "service": getattr(e, "service", None),
+                    "request_id": getattr(http_request.state, "request_id", None) if http_request and hasattr(http_request, 'state') else None
+                }
+            )
+            try:
+                from agents import _generate_demo_result
+                result = _generate_demo_result(validated.query, validated.max_papers)
+                result["fallback_reason"] = f"NIM services unavailable: {type(e).__name__}"
+                result["fallback_details"] = e.details
+            except ImportError:
+                logger.error("Demo result generator not available")
+                raise HTTPException(
+                    status_code=503,
+                    detail={
+                        "error": "Service temporarily unavailable",
+                        "message": "NIM services not accessible",
+                        "timestamp": datetime.now().isoformat()
+                    }
+                )
+        except ValidationError as e:
+            # Validation errors - return 400 with details
+            logger.warning(f"Validation error: {e.message}")
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "error": "Validation error",
+                    "message": e.message,
+                    "details": e.details,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
+        except PaperSourceError as e:
+            # Paper source errors - return 502
+            logger.error(f"Paper source error: {e.message}", exc_info=True)
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "error": "Paper source error",
+                    "message": e.message,
+                    "source": e.source,
+                    "timestamp": datetime.now().isoformat()
+                }
+            )
         except Exception as e:
-            # Check if it's a circuit breaker error or NIM unavailability
+            # Check if it's a connection/timeout error that should be NIMServiceError
             import aiohttp
+            from tenacity import RetryError
 
             error_str = str(e).lower()
             is_nim_unavailable = (
                 "circuit breaker" in error_str
                 or "service unavailable" in error_str
                 or "connection" in error_str
-                or isinstance(e, (aiohttp.ClientError, asyncio.TimeoutError))
+                or "cannot connect" in error_str
+                or "nodename nor servname" in error_str
+                or isinstance(e, (aiohttp.ClientError, asyncio.TimeoutError, RetryError))
             )
 
-            # Graceful degradation: fall back to demo mode
             if is_nim_unavailable:
-                logger.warning(
-                    f"⚠️ NIM services unavailable ({type(e).__name__}), "
-                    f"falling back to demo mode for query: {validated.query}"
+                # Convert to NIMServiceError and retry
+                nim_error = NIMServiceError(
+                    f"NIM service unavailable: {type(e).__name__}",
+                    details={"original_error": str(e)}
                 )
-                # Import demo result generator
-                from agents import _generate_demo_result
-
-                result = _generate_demo_result(validated.query, validated.max_papers)
-                result["fallback_reason"] = (
-                    f"NIM services unavailable: {type(e).__name__}"
-                )
+                # Recursively handle as NIMServiceError
+                raise nim_error
             else:
-                # Re-raise for other errors
+                # Unexpected errors - log with full context
+                request_id = getattr(http_request.state, "request_id", None) if http_request and hasattr(http_request, 'state') else None
                 logger.error(
-                    f"Unexpected error during research workflow: {e}", exc_info=True
+                    f"Unexpected error during research workflow: {e}",
+                    exc_info=True,
+                    extra={
+                        "query": validated.query[:100],
+                        "max_papers": validated.max_papers,
+                        "error_type": type(e).__name__,
+                        "request_id": request_id
+                    }
                 )
+                is_debug = os.getenv("DEBUG", "false").lower() == "true"
                 raise HTTPException(
-                    status_code=500, detail=f"Research workflow failed: {str(e)}"
+                    status_code=500,
+                    detail={
+                        "error": "Internal error",
+                        "message": str(e) if is_debug else "Research workflow failed",
+                        "timestamp": datetime.now().isoformat(),
+                        "request_id": request_id
+                    }
                 )
 
         # Check for errors in result
@@ -692,14 +831,30 @@ async def research(request: ResearchRequest):
 
         return result
 
-    except ValueError as e:
-        logger.error(f"Validation error: {e}")
+    except (ValueError, InputValidationError) as e:
+        # Handle both ValueError and InputValidationError
+        error_message = str(e)
+        error_details = {}
+        if isinstance(e, InputValidationError):
+            error_message = getattr(e, 'message', str(e))
+            error_details = getattr(e, 'details', {})
+        
+        # Get request_id from middleware state (set by RequestIDMiddleware)
+        request_id = None
+        # Note: Request object not directly available in this scope
+        # Request ID is set by middleware and will be in response headers
+        logger.error(
+            f"Validation error: {error_message}",
+            extra={"request_id": request_id, "details": error_details}
+        )
         raise HTTPException(
             status_code=400,
             detail={
                 "error": "Invalid input",
-                "message": str(e),
+                "message": error_message,
+                "details": error_details,
                 "timestamp": datetime.now().isoformat(),
+                "request_id": request_id
             },
         )
     except Exception as e:
@@ -955,6 +1110,257 @@ async def export_bibtex(request: BibTeXExportRequest):
         )
 
 
+@app.post("/export/zotero", tags=["Export"], response_model=Dict[str, Any])
+async def export_zotero(request: BibTeXExportRequest):
+    """
+    Export papers in RIS format for Zotero
+    
+    RIS (Research Information Systems) is a standard format
+    used by Zotero, Mendeley, EndNote, and other citation managers.
+    """
+    try:
+        from export_formats import generate_zotero_ris_export
+        
+        ris_content = generate_zotero_ris_export(request.papers)
+        
+        return {
+            "format": "ris",
+            "content": ris_content,
+            "filename": "zotero_export.ris",
+            "mime_type": "application/x-research-info-systems",
+            "papers_count": len(request.papers)
+        }
+    except Exception as e:
+        logger.error(f"Zotero export error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate Zotero export: {str(e)}"
+        )
+
+
+@app.post("/export/mendeley", tags=["Export"], response_model=Dict[str, Any])
+async def export_mendeley(request: BibTeXExportRequest):
+    """
+    Export papers in CSV format for Mendeley
+    
+    Mendeley uses a specific CSV format with required columns.
+    """
+    try:
+        from export_formats import generate_mendeley_csv_export
+        
+        csv_content = generate_mendeley_csv_export(request.papers)
+        
+        return {
+            "format": "csv",
+            "content": csv_content,
+            "filename": "mendeley_export.csv",
+            "mime_type": "text/csv",
+            "papers_count": len(request.papers)
+        }
+    except Exception as e:
+        logger.error(f"Mendeley export error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate Mendeley export: {str(e)}"
+        )
+
+
+@app.post("/pdf-analysis", tags=["Analysis"], response_model=Dict[str, Any])
+async def analyze_pdf_full_text(request: BibTeXExportRequest):
+    """
+    Analyze full-text PDFs of papers
+    
+    Downloads and analyzes full PDF text to extract methodologies,
+    experimental details, and results beyond abstracts.
+    """
+    try:
+        from pdf_analysis import analyze_papers_full_text
+        from nim_clients import ReasoningNIMClient
+        
+        # Initialize reasoning client for enhanced extraction
+        reasoning_client = None
+        try:
+            async with ReasoningNIMClient() as client:
+                reasoning_client = client
+                results = await analyze_papers_full_text(
+                    request.papers,
+                    reasoning_client=reasoning_client,
+                    max_papers=int(os.getenv("MAX_PDF_ANALYSIS", "5"))
+                )
+        except Exception as e:
+            logger.warning(f"Reasoning client unavailable, using basic extraction: {e}")
+            results = await analyze_papers_full_text(
+                request.papers,
+                max_papers=int(os.getenv("MAX_PDF_ANALYSIS", "5"))
+            )
+        
+        return {
+            "papers_analyzed": len(results),
+            "analyses": results,
+            "summary": {
+                "successful": sum(1 for r in results.values() if "error" not in r),
+                "failed": sum(1 for r in results.values() if "error" in r)
+            }
+        }
+    except Exception as e:
+        logger.error(f"PDF analysis error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze PDFs: {str(e)}"
+        )
+
+
+@app.post("/aws/sagemaker", tags=["AWS"], response_model=Dict[str, Any])
+async def invoke_sagemaker(request: Dict[str, Any]):
+    """
+    Invoke SageMaker endpoint for model inference
+    
+    Requires AWS credentials and SageMaker endpoint configured.
+    """
+    try:
+        from aws_integration import use_sagemaker_for_inference
+        
+        endpoint_name = request.get("endpoint_name")
+        payload = request.get("payload", {})
+        
+        if not endpoint_name:
+            raise HTTPException(status_code=400, detail="endpoint_name required")
+        
+        result = await use_sagemaker_for_inference(endpoint_name, payload)
+        
+        if result is None:
+            raise HTTPException(
+                status_code=503,
+                detail="SageMaker integration not available or endpoint not accessible"
+            )
+        
+        return {"result": result}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"SageMaker invocation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to invoke SageMaker: {str(e)}"
+        )
+
+
+@app.post("/aws/bedrock", tags=["AWS"], response_model=Dict[str, Any])
+async def invoke_bedrock(request: Dict[str, Any]):
+    """
+    Invoke Amazon Bedrock model for enhanced analysis
+    
+    Requires AWS credentials and Bedrock access configured.
+    """
+    try:
+        from aws_integration import use_bedrock_for_analysis
+        
+        prompt = request.get("prompt")
+        # Default to Claude 3.5 Sonnet (best for 2025), with fallback to Claude v2
+        model_id = request.get(
+            "model_id",
+            os.getenv("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022")
+        )
+        
+        if not prompt:
+            raise HTTPException(status_code=400, detail="prompt required")
+        
+        result = await use_bedrock_for_analysis(prompt, model_id)
+        
+        if result is None:
+            raise HTTPException(
+                status_code=503,
+                detail="Bedrock integration not available or not accessible"
+            )
+        
+        return {"result": result, "model_id": model_id}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Bedrock invocation error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to invoke Bedrock: {str(e)}"
+        )
+
+
+@app.post("/aws/store-s3", tags=["AWS"], response_model=Dict[str, Any])
+async def store_result_s3(request: Dict[str, Any]):
+    """
+    Store research result in S3
+    
+    Requires AWS credentials and S3 bucket configured.
+    """
+    try:
+        from aws_integration import store_research_result_s3
+        
+        result = request.get("result")
+        query = request.get("query", "research_query")
+        
+        if not result:
+            raise HTTPException(status_code=400, detail="result required")
+        
+        s3_key = await store_research_result_s3(result, query)
+        
+        if s3_key is None:
+            raise HTTPException(
+                status_code=503,
+                detail="S3 storage not available or bucket not configured"
+            )
+        
+        return {"s3_location": s3_key, "status": "stored"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"S3 storage error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to store in S3: {str(e)}"
+        )
+
+
+@app.post("/citation-graph", tags=["Analysis"], response_model=Dict[str, Any])
+async def analyze_citation_graph(request: BibTeXExportRequest):
+    """
+    Analyze citation graph from papers
+    
+    Builds citation graph from Semantic Scholar and Crossref data
+    to identify seminal papers, citation paths, and research evolution.
+    """
+    try:
+        from citation_graph import build_citation_graph_from_papers, analyze_citation_graph as analyze_graph
+        import os
+        
+        semantic_scholar_key = os.getenv("SEMANTIC_SCHOLAR_API_KEY")
+        
+        # Build citation graph
+        graph = await build_citation_graph_from_papers(
+            request.papers,
+            semantic_scholar_api_key=semantic_scholar_key
+        )
+        
+        # Analyze graph
+        analysis = analyze_graph(graph)
+        
+        return {
+            "total_papers": len(graph.nodes),
+            "total_citations": len(graph.edges),
+            "seminal_papers": analysis.get("seminal_papers", []),
+            "influential_papers": analysis.get("influential_papers", []),
+            "evolution_timeline": analysis.get("evolution_timeline", []),
+            "citation_stats": {
+                "avg_citations_per_paper": len(graph.edges) / max(len(graph.nodes), 1),
+                "most_cited": analysis.get("influential_papers", [])[:5] if analysis.get("influential_papers") else []
+            }
+        }
+    except Exception as e:
+        logger.error(f"Citation graph analysis error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to analyze citation graph: {str(e)}"
+        )
+
+
 @app.post("/export/latex", tags=["Export"], response_model=Dict[str, Any])
 async def export_latex(request: LaTeXExportRequest):
     """
@@ -1168,47 +1574,129 @@ async def research_stream(request: ResearchRequest):
                 yield f"event: papers_found\n"
                 yield f"data: {json.dumps({'papers_count': len(papers), 'papers': papers_data, 'decisions': agent.decision_log.get_decisions()})}\n\n"
                 
-                # Phase 2: Analysis (30s-3min)
+                # Phase 2: Progressive Analysis + Synthesis (30s-3min)
+                # Use incremental synthesizer for real-time synthesis updates
                 yield f"event: agent_status\n"
-                yield f"data: {json.dumps({'agent': 'Analyst', 'status': 'analyzing', 'message': f'Analyzing {len(papers)} papers in parallel'})}\n\n"
-                
-                analyses, quality_scores = await agent._execute_analysis_phase(papers)
-                
-                # Emit paper_analyzed events (batched every 3 papers for efficiency)
-                batch_size = 3
-                for i in range(0, len(analyses), batch_size):
-                    batch_analyses = analyses[i:i+batch_size]
-                    batch_papers = papers[i:i+batch_size]
-                    
-                    analyzed_data = [
-                        {
-                            "paper_id": a.paper_id,
-                            "title": next((p.title for p in batch_papers if p.id == a.paper_id), "Unknown"),
-                            "findings_count": len(a.key_findings),
-                            "confidence": a.confidence
-                        }
-                        for a in batch_analyses
-                    ]
-                    
+                yield f"data: {json.dumps({'agent': 'Analyst', 'status': 'analyzing', 'message': f'Analyzing {len(papers)} papers progressively'})}\n\n"
+
+                # Create incremental synthesizer
+                incremental_synthesizer = IncrementalSynthesizer(
+                    reasoning_client=reasoning,
+                    embedding_client=embedding,
+                    similarity_threshold=0.7,
+                    top_k_candidates=5
+                )
+
+                # Process papers one at a time with progressive synthesis
+                analyses = []
+                quality_scores = []
+
+                for idx, paper in enumerate(papers):
+                    # Analyze single paper
+                    paper_analysis = await agent.analyst.analyze(paper)
+                    quality_score = agent.analyst.assess_quality(paper, paper_analysis)
+
+                    analyses.append(paper_analysis)
+                    quality_scores.append(quality_score)
+
+                    # Emit paper_analyzed event
                     yield f"event: paper_analyzed\n"
-                    yield f"data: {json.dumps({'batch': i//batch_size + 1, 'papers': analyzed_data, 'total_analyzed': min(i+batch_size, len(analyses)), 'total': len(papers)})}\n\n"
-                
-                # Phase 3: Synthesis (3-4min)
-                yield f"event: agent_status\n"
-                yield f"data: {json.dumps({'agent': 'Synthesizer', 'status': 'synthesizing', 'message': 'Identifying themes and patterns'})}\n\n"
-                
-                synthesis = await agent._execute_synthesis_phase(analyses)
-                
-                # Emit theme_found events
-                for i, theme in enumerate(synthesis.common_themes):
-                    yield f"event: theme_found\n"
-                    yield f"data: {json.dumps({'theme_number': i+1, 'theme': theme, 'total_themes': len(synthesis.common_themes)})}\n\n"
-                
-                # Emit contradiction_found events
-                for i, contradiction in enumerate(synthesis.contradictions):
-                    yield f"event: contradiction_found\n"
-                    yield f"data: {json.dumps({'contradiction_number': i+1, 'contradiction': contradiction, 'total_contradictions': len(synthesis.contradictions)})}\n\n"
-                
+                    paper_data = {
+                        'paper_number': idx + 1,
+                        'total': len(papers),
+                        'paper_id': paper.id,
+                        'title': paper.title,
+                        'findings_count': len(paper_analysis.key_findings),
+                        'confidence': paper_analysis.confidence
+                    }
+                    yield f"data: {json.dumps(paper_data)}\n\n"
+
+                    # Incremental synthesis after each paper
+                    paper_info = {
+                        "id": paper.id,
+                        "title": paper.title,
+                        "authors": paper.authors,
+                        "url": paper.url
+                    }
+
+                    synthesis_update = await incremental_synthesizer.add_analysis(
+                        paper_analysis,
+                        paper_info
+                    )
+
+                    # Emit synthesis_update event with progressive discoveries
+                    update_data = synthesis_update.to_dict()
+
+                    # Emit individual discovery events for new themes
+                    for new_theme in synthesis_update.new_themes:
+                        yield f"event: theme_emerging\n"
+                        theme_data = {
+                            'paper_number': idx + 1,
+                            'theme_name': new_theme.name,
+                            'confidence': new_theme.confidence,
+                            'initial_finding': new_theme.key_findings[0] if new_theme.key_findings else 'N/A'
+                        }
+                        yield f"data: {json.dumps(theme_data)}\n\n"
+
+                    # Emit theme strengthening events
+                    for update in synthesis_update.theme_updates:
+                        yield f"event: theme_strengthened\n"
+                        theme_update_data = {
+                            'paper_number': idx + 1,
+                            'theme_name': update['theme_name'],
+                            'old_confidence': update['old_confidence'],
+                            'new_confidence': update['new_confidence'],
+                            'new_finding': update['new_finding']
+                        }
+                        yield f"data: {json.dumps(theme_update_data)}\n\n"
+
+                    # Emit contradiction discovery events
+                    for contradiction in synthesis_update.new_contradictions:
+                        yield f"event: contradiction_discovered\n"
+                        contradiction_data = {
+                            'paper_number': idx + 1,
+                            'finding_a': contradiction.finding_a,
+                            'finding_b': contradiction.finding_b,
+                            'explanation': contradiction.explanation,
+                            'severity': contradiction.severity
+                        }
+                        yield f"data: {json.dumps(contradiction_data)}\n\n"
+
+                    # Emit theme merge events
+                    for merge in synthesis_update.merged_themes:
+                        yield f"event: themes_merged\n"
+                        merge_data = {
+                            'paper_number': idx + 1,
+                            'merged_from': merge['merged_from'],
+                            'merged_into': merge['merged_into'],
+                            'similarity': merge['similarity']
+                        }
+                        yield f"data: {json.dumps(merge_data)}\n\n"
+
+                    # Emit comprehensive synthesis update
+                    yield f"event: synthesis_update\n"
+                    yield f"data: {json.dumps(update_data)}\n\n"
+
+                # Get final synthesis from incremental synthesizer
+                final_synthesis_obj = incremental_synthesizer.get_final_synthesis()
+
+                # Convert to compatible format for refinement phase
+                synthesis = Synthesis(
+                    common_themes=[theme.name for theme in final_synthesis_obj.themes],
+                    contradictions=[
+                        {
+                            "finding_a": c.finding_a,
+                            "finding_b": c.finding_b,
+                            "explanation": c.explanation,
+                            "severity": c.severity
+                        }
+                        for c in final_synthesis_obj.contradictions
+                    ],
+                    gaps=[gap.description for gap in final_synthesis_obj.gaps],
+                    recommendations=[],  # Will be filled by refinement phase
+                    enhanced_insights=None  # Will be populated after synthesis
+                )
+
                 # Phase 4: Refinement (optional)
                 yield f"event: agent_status\n"
                 yield f"data: {json.dumps({'agent': 'Coordinator', 'status': 'evaluating', 'message': 'Assessing synthesis quality'})}\n\n"
@@ -1398,7 +1886,7 @@ async def root():
     Root endpoint with API information
     """
     return {
-        "service": "ResearchOps Agent API",
+        "service": "Agentic Researcher API",
         "version": "1.0.0",
         "description": "Multi-agent AI system for automated literature review",
         "endpoints": {
@@ -1421,9 +1909,9 @@ async def root():
 async def startup_event():
     """Log startup information"""
     logger.info("=" * 60)
-    logger.info("🚀 ResearchOps Agent API Starting")
+    logger.info("🚀 Agentic Researcher API Starting")
     logger.info("=" * 60)
-    logger.info("Service: ResearchOps Agent API v1.0.0")
+    logger.info("Service: Agentic Researcher API v1.0.0")
     logger.info("Endpoints: /docs, /health, /research")
     logger.info("NIMs: Reasoning + Embedding")
     logger.info("=" * 60)
@@ -1433,7 +1921,7 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     """Log shutdown information"""
-    logger.info("🛑 ResearchOps Agent API Shutting Down")
+    logger.info("🛑 Agentic Researcher API Shutting Down")
 
 
 if __name__ == "__main__":

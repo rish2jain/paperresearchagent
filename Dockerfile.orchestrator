@@ -17,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source code
 COPY src/ /app/
 
+# Set PYTHONPATH to ensure imports work correctly
+ENV PYTHONPATH=/app:$PYTHONPATH
+
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \
     chown -R appuser:appuser /app

@@ -1,5 +1,7 @@
 # 🚀 ResearchOps Agent - Deployment Guide
 
+**Last Updated:** 2025-01-15
+
 ## ✅ All Critical Enhancements Completed
 
 This guide covers the enhanced version of ResearchOps Agent with all critical improvements implemented.
@@ -364,5 +366,58 @@ For issues or questions:
 5. **Complete Implementation** - All components working together
 
 ---
+
+## Deployment Success Summary
+
+**Date:** 2025-11-03  
+**Status:** ✅ **ALL SYSTEMS OPERATIONAL**
+
+### Current Deployment Status
+
+All pods running and operational:
+- agent-orchestrator: 1/1 Running
+- embedding-nim: 1/1 Running  
+- reasoning-nim: 1/1 Running
+- web-ui: 1/1 Running
+- qdrant: 1/1 Running
+
+### Infrastructure Improvements Applied
+
+1. **Deployment Strategy Optimization**
+   - NIM deployments: Recreate strategy (prevents GPU exhaustion)
+   - Non-GPU deployments: RollingUpdate (zero downtime)
+
+2. **Revision History Limit**
+   - All deployments: `revisionHistoryLimit: 3` (automatic cleanup)
+
+3. **Pod Disruption Budgets**
+   - All critical services: `minAvailable: 1` (high availability)
+
+4. **Docker PYTHONPATH Fix**
+   - Fixed `ModuleNotFoundError` in containers
+   - Added `ENV PYTHONPATH=/app:$PYTHONPATH` to Dockerfiles
+
+5. **Deploy Script Enhancement**
+   - Increased timeouts: 10 min → 20 min (for TensorRT compilation)
+
+### Verification Commands
+
+```bash
+# Check pod status
+kubectl get pods -n research-ops
+
+# Check deployment configuration
+kubectl get deployments -n research-ops -o custom-columns=\
+  NAME:.metadata.name,\
+  STRATEGY:.spec.strategy.type,\
+  REVISION-LIMIT:.spec.revisionHistoryLimit
+
+# Check pod disruption budgets
+kubectl get pdb -n research-ops
+```
+
+For detailed troubleshooting, see:
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) - General troubleshooting
+- [k8s/DEPLOYMENT_STATUS.md](k8s/DEPLOYMENT_STATUS.md) - Current deployment status
 
 **Status**: ✅ Ready for Demo & Submission

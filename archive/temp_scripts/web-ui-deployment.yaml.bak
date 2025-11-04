@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-ui
+  namespace: research-ops
+  labels:
+    app: web-ui
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-ui
+  template:
+    metadata:
+      labels:
+        app: web-ui
+        component: frontend
+    spec:
+      containers:
+      - name: web-ui
+        image: 294337990007.dkr.ecr.us-east-2.amazonaws.com/research-ops/ui:latest
+        imagePullPolicy: Always
+
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          readOnlyRootFilesystem: false
+          seccompProfile:
+            type: RuntimeDefault
+
+        ports:
+        - containerPort: 8501
+          name: http
+
+        env:
+        - name: AGENT_ORCHESTRATOR_URL
+          value: "http://agent-orchestrator.research-ops.svc.cluster.local:8080"
+
+        - name: STREAMLIT_SERVER_PORT
+          value: "8501"
+
+        - name: STREAMLIT_SERVER_ADDRESS
+          value: "0.0.0.0"
+
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"
+
+        livenessProbe:
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+          initialDelaySeconds: 30
+          periodSeconds: 30
+
+        readinessProbe:
+          httpGet:
+            path: /_stcore/health
+            port: 8501
+          initialDelaySeconds: 10
+          periodSeconds: 10
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-ui
+  namespace: research-ops
+  labels:
+    app: web-ui
+spec:
+  type: ClusterIP
+  ports:
+  - port: 8501
+    targetPort: 8501
+    protocol: TCP
+    name: http
+  selector:
+    app: web-ui

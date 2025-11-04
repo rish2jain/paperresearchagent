@@ -29,6 +29,23 @@ def test_helper_functions_exist():
             'render_papers_summary',
             'render_expand_collapse_controls'
         ]
+        
+        # Check for UX enhancements (may be imported from ux_enhancements module)
+        try:
+            import ux_enhancements
+            ux_functions = [
+                'render_enhanced_pagination',
+                'render_user_preferences_panel',
+                'render_accessibility_features',
+                'render_enhanced_error_message',
+                'show_notification',
+                'track_query_timing'
+            ]
+            for func_name in ux_functions:
+                if hasattr(ux_enhancements, func_name):
+                    print(f"  ✅ UX enhancement function: {func_name}")
+        except ImportError:
+            print("  ⚠️  UX enhancements module not available (expected in test environment)")
 
         for func_name in required_functions:
             assert hasattr(web_ui, func_name), f"Missing function: {func_name}"
@@ -170,7 +187,14 @@ def test_session_state_variables():
     expected_state_vars = [
         "synthesis_expanded",
         "show_all_decisions",
-        "current_paper_page"  # From Phase 2.3
+        "current_paper_page",  # From Phase 2.3
+        "enhanced_paper_page",  # From UX enhancements
+        "items_per_page_setting",  # From UX enhancements
+        "user_preferences",  # From UX enhancements
+        "notifications",  # From UX enhancements
+        "query_timings",  # From UX enhancements
+        "tour_completed",  # From UX enhancements
+        "high_contrast_mode"  # From UX enhancements
     ]
 
     for var in expected_state_vars:

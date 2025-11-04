@@ -2,7 +2,9 @@
 
 **Hackathon:** NVIDIA & AWS Agentic AI Unleashed Hackathon 2025  
 **Deadline:** November 3, 2025 @ 2:00pm EST  
-**Project:** Agentic Scholar
+**Submission Date:** November 3, 2025  
+**Project:** Agentic Scholar  
+**Status:** ✅ Submitted
 
 ---
 

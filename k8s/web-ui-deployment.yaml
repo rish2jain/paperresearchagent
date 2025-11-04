@@ -8,6 +8,7 @@ metadata:
     component: frontend
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: web-ui
@@ -17,6 +18,10 @@ spec:
         app: web-ui
         component: frontend
     spec:
+      volumes:
+      - name: utils
+        configMap:
+          name: utils-session-manager
       containers:
       - name: web-ui
         image: 294337990007.dkr.ecr.us-east-2.amazonaws.com/research-ops/ui:latest
@@ -37,6 +42,11 @@ spec:
         ports:
         - containerPort: 8501
           name: http
+
+        volumeMounts:
+        - name: utils
+          mountPath: /app/utils
+          readOnly: true
 
         env:
         - name: AGENT_ORCHESTRATOR_URL
@@ -79,7 +89,7 @@ metadata:
   labels:
     app: web-ui
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
   - port: 8501
     targetPort: 8501

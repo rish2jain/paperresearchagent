@@ -124,7 +124,12 @@ class TestResultCache:
 
     def test_cache_key_generation(self):
         """Test cache key generation from query parameters"""
-        from web_ui import ResultCache
+        # Try absolute import first (when running as script)
+        try:
+            from web_ui import ResultCache
+        except ImportError:
+            # Try relative import (when running as package)
+            from .web_ui import ResultCache
 
         key1 = ResultCache._generate_cache_key("query1", 10, "arxiv,pubmed", "2023-2024")
         key2 = ResultCache._generate_cache_key("query1", 10, "arxiv,pubmed", "2023-2024")
@@ -138,7 +143,10 @@ class TestResultCache:
 
     def test_cache_set_and_get(self):
         """Test caching and retrieval of results"""
-        from web_ui import ResultCache
+        try:
+            from web_ui import ResultCache
+        except ImportError:
+            from .web_ui import ResultCache
         import streamlit as st
 
         # Mock session state
@@ -160,7 +168,10 @@ class TestResultCache:
 
     def test_cache_expiration(self):
         """Test cache expires after TTL"""
-        from web_ui import ResultCache
+        try:
+            from web_ui import ResultCache
+        except ImportError:
+            from .web_ui import ResultCache
         import streamlit as st
 
         st.session_state = {}
@@ -181,7 +192,10 @@ class TestResultCache:
 
     def test_cache_clear(self):
         """Test clearing all cached results"""
-        from web_ui import ResultCache
+        try:
+            from web_ui import ResultCache
+        except ImportError:
+            from .web_ui import ResultCache
         import streamlit as st
 
         st.session_state = {}
@@ -200,7 +214,10 @@ class TestResultCache:
 
     def test_cache_stats(self):
         """Test cache statistics tracking"""
-        from web_ui import ResultCache
+        try:
+            from web_ui import ResultCache
+        except ImportError:
+            from .web_ui import ResultCache
         import streamlit as st
 
         st.session_state = {}

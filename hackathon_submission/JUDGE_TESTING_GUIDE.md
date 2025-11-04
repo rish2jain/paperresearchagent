@@ -1103,3 +1103,7 @@ Before finalizing your evaluation, verify:
 We're proud of our multi-agent system that truly demonstrates agentic AI behavior with both NVIDIA NIMs working together on Amazon EKS, wrapped in a world-class user experience that sets a new standard for AI research tools.
 
 **Questions?** Check our comprehensive documentation or reach out via Devpost submission.
+
+---
+
+**Last Updated:** November 4, 2025

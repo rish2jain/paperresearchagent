@@ -8,6 +8,7 @@ metadata:
     component: agentic-system
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: agent-orchestrator
@@ -89,13 +90,39 @@ spec:
         - name: ENABLE_EMBEDDING_CACHE
           value: "true"
 
+        # Paper source API keys (from secret - auto-enables sources if keys are present)
+        - name: IEEE_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: paper-source-api-keys
+              key: IEEE_API_KEY
+              optional: true
+        - name: ACM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: paper-source-api-keys
+              key: ACM_API_KEY
+              optional: true
+        - name: SPRINGER_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: paper-source-api-keys
+              key: SPRINGER_API_KEY
+              optional: true
+        - name: SEMANTIC_SCHOLAR_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: paper-source-api-keys
+              key: SEMANTIC_SCHOLAR_API_KEY
+              optional: true
+
         resources:
           requests:
-            memory: "4Gi"
+            memory: "3Gi"
             cpu: "2"
           limits:
-            memory: "8Gi"
-            cpu: "4"
+            memory: "5Gi"   # Optimized for 2-node setup
+            cpu: "2.5"      # Optimized to fit within node capacity
 
         livenessProbe:
           httpGet:
@@ -120,7 +147,7 @@ metadata:
   labels:
     app: agent-orchestrator
 spec:
-  type: ClusterIP
+  type: LoadBalancer
   ports:
   - port: 8080
     targetPort: 8080

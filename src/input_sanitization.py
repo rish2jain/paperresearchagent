@@ -10,9 +10,14 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 
-class ValidationError(Exception):
-    """Raised when input validation fails"""
-    pass
+# Import from exceptions module for consistency
+try:
+    from exceptions import ValidationError
+except ImportError:
+    # Fallback if exceptions module not available
+    class ValidationError(Exception):
+        """Raised when input validation fails"""
+        pass
 
 
 def sanitize_research_query(query: str, max_length: int = 1000) -> str:
@@ -60,10 +65,30 @@ def sanitize_research_query(query: str, max_length: int = 1000) -> str:
         r"import\s+os",
         r"import\s+sys",
         r"import\s+subprocess",
+        r"__builtins__",
+        r"__globals__",
+        r"__dict__",
+        r"\.\.\/",  # Path traversal
+        r"\.\.\\\\",  # Windows path traversal
+    ]
+    
+    # SQL injection patterns
+    sql_keywords = [
+        r"\bSELECT\b.*\bFROM\b",
+        r"\bINSERT\s+INTO\b",
+        r"\bUPDATE\s+.*\s+SET\b",
+        r"\bDELETE\s+FROM\b",
+        r"\bDROP\s+(TABLE|DATABASE)\b",
+        r"\bCREATE\s+(TABLE|DATABASE)\b",
+        r"\bALTER\s+TABLE\b",
+        r"\bUNION\s+SELECT\b",
+        r"';?\s*--",  # SQL comment injection
+        r"';?\s*/\*",  # SQL comment block
     ]
     
     query_lower = query.lower()
     
+    # Check for dangerous patterns
     for pattern in dangerous_patterns:
         if re.search(pattern, query_lower, re.IGNORECASE):
             logger.warning(f"Query contains suspicious pattern '{pattern}': {query[:50]}...")
@@ -72,11 +97,30 @@ def sanitize_research_query(query: str, max_length: int = 1000) -> str:
                 f"Please reformulate your research question."
             )
     
+    # Check for SQL injection patterns
+    for pattern in sql_keywords:
+        if re.search(pattern, query_lower, re.IGNORECASE):
+            logger.warning(f"Query contains SQL injection pattern '{pattern}': {query[:50]}...")
+            raise ValidationError(
+                f"Query contains potentially malicious SQL patterns. "
+                f"Please use natural language for research queries."
+            )
+    
     # Check for excessive special characters (possible obfuscation)
     special_char_count = len(re.findall(r'[!@#$%^&*()_+=\[\]{}|\\:";\'<>?,./]', query))
     if special_char_count > len(query) * 0.3:  # More than 30% special characters
         logger.warning(f"Query has suspiciously high special character ratio: {special_char_count}/{len(query)}")
         raise ValidationError("Query contains too many special characters. Please use natural language.")
+    
+    # Check for null bytes (potential for binary injection)
+    if '\x00' in query:
+        logger.warning("Query contains null byte")
+        raise ValidationError("Query contains invalid characters.")
+    
+    # Check for excessive whitespace (possible obfuscation)
+    if len(query) - len(query.strip()) > len(query) * 0.5:
+        logger.warning("Query has excessive leading/trailing whitespace")
+        raise ValidationError("Query contains excessive whitespace.")
     
     # Normalize whitespace
     query = re.sub(r'\s+', ' ', query)

@@ -1,5 +1,7 @@
 # 🚀 Complete Hackathon Setup & Submission Guide
 
+**Last Updated:** 2025-01-15
+
 **NVIDIA & AWS Agentic AI Unleashed Hackathon 2025**  
 **Deadline: November 3, 2025 @ 2:00pm EST**
 

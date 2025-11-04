@@ -8,6 +8,7 @@
 ## Priority 1: Research Insights Hero Section
 
 ### File: `src/web_ui.py`
+
 ### Location: After line ~1477 (after success message)
 
 ```python
@@ -57,7 +58,7 @@ def render_research_insights_hero(result: Dict) -> None:
 def render_contradiction_hero(contradictions: List[Dict], papers_count: int) -> None:
     """Render hero card for contradictions (highest priority)."""
     contradiction_count = len(contradictions)
-    high_impact = [c for c in contradictions if classify_impact(c) == "high"]
+    high_impact = [c for c in contradictions if classify_contradiction_impact(c) == "high"]
 
     st.markdown(f"""
     <div style='background: linear-gradient(135deg, #FFEBEE 0%, #FCE4EC 100%);
@@ -116,7 +117,7 @@ def render_gap_summary_card(gaps: List[str]) -> None:
 def render_contradiction_summary_card(contradictions: List[Dict]) -> None:
     """Render summary card for contradictions."""
     contradiction_count = len(contradictions) if contradictions else 0
-    high_impact = sum(1 for c in contradictions if classify_impact(c) == "high") if contradictions else 0
+    high_impact = sum(1 for c in contradictions if classify_contradiction_impact(c) == "high") if contradictions else 0
 
     with st.container():
         st.markdown(f"""
@@ -158,40 +159,237 @@ def render_theme_summary_card(themes: List[str]) -> None:
             st.rerun()
 
 
-def classify_impact(contradiction: Dict) -> str:
+def classify_contradiction_impact(contradiction: Dict, papers: List[Dict] = None) -> str:
     """
-    Classify contradiction impact level.
+    Classify contradiction impact level using multiple criteria.
 
-    Criteria:
-    - High: Affects methodology, widely cited papers, unresolved
-    - Medium: Conceptual differences, moderate citation impact
-    - Low: Terminology, minor discrepancies
+    This is the authoritative implementation that consolidates all classification rules.
+
+    Classification Rules (in order of precedence):
+    1. methodology_impact flag (boolean, highest precedence) - if True, always "high"
+    2. Citation-based scoring (from contradiction dict or papers metadata):
+       - High: max_citations > 500
+       - Medium: max_citations 100-500
+       - Low: max_citations < 100
+    3. Type-based scoring (optional enhancement):
+       - Methodological: +3 points
+       - Conceptual: +2 points
+       - Terminology: +1 point
+    4. Recency scoring (optional enhancement, if papers provided):
+       - 2023+: +3 points
+       - 2020-2022: +2 points
+       - Before 2020: +1 point
+    5. Resolution status boost:
+       - "unresolved" or "ongoing" → bump impact by one level (low→medium, medium→high)
+       - "resolved" → no boost
+
+    Args:
+        contradiction: Dict containing contradiction data with keys:
+            - methodology_impact (bool, optional): Highest priority flag
+            - paper1_citations (int, optional): Citations for first paper (default: 0)
+            - paper2_citations (int, optional): Citations for second paper (default: 0)
+            - paper1 (str, optional): Title or identifier for first paper
+            - paper2 (str, optional): Title or identifier for second paper
+            - type (str, optional): Contradiction type ("methodological", "conceptual", "terminology")
+            - resolution_status (str, optional): "unresolved", "ongoing", or "resolved" (default: "unresolved")
+        papers: Optional list of paper Dicts with metadata. If provided, will look up
+            citations and year from papers instead of using contradiction dict values.
+
+    Returns:
+        str: "high", "medium", or "low"
     """
-    # TODO: Implement actual classification logic
-    # For now, simple heuristic based on paper citations
+    # Rule 1: Methodology impact flag (highest precedence)
+    methodology_impact = contradiction.get("methodology_impact", False)
+    if methodology_impact:
+        return "high"
+
+    # Rule 2: Citation-based scoring
+    # Try to get citations from papers metadata if available, otherwise use contradiction dict
     paper1_citations = contradiction.get("paper1_citations", 0)
     paper2_citations = contradiction.get("paper2_citations", 0)
-
-    if paper1_citations > 500 or paper2_citations > 500:
-        return "high"
-    elif paper1_citations > 100 or paper2_citations > 100:
-        return "medium"
+    
+    # Cache paper metadata lookups to avoid duplicate calls
+    paper1_info = None
+    paper2_info = None
+    
+    if papers:
+        # Look up paper metadata for more accurate citations and year
+        paper1_info = find_paper_metadata(contradiction.get("paper1"), papers)
+        paper2_info = find_paper_metadata(contradiction.get("paper2"), papers)
+        paper1_citations = max(paper1_citations, paper1_info.get("citations", 0))
+        paper2_citations = max(paper2_citations, paper2_info.get("citations", 0))
     else:
-        return "low"
+        # Fallback: create empty dicts for consistency
+        paper1_info = {}
+        paper2_info = {}
+    
+    max_citations = max(paper1_citations, paper2_citations)
+
+    # Base impact from citations (scoring approach)
+    citation_score = 0
+    if max_citations > 500:
+        citation_score = 3
+        base_impact = "high"
+    elif max_citations >= 100:
+        citation_score = 2
+        base_impact = "medium"
+    else:
+        citation_score = 1
+        base_impact = "low"
+
+    # Rule 3: Type-based scoring (optional enhancement)
+    contradiction_type = contradiction.get("type", "").lower()
+    type_score = {
+        "methodological": 3,
+        "conceptual": 2,
+        "terminology": 1
+    }.get(contradiction_type, 2)  # Default to conceptual if unknown
+
+    # Rule 4: Recency scoring (optional enhancement, if papers provided)
+    recency_score = 1  # Default to lowest
+    if papers:
+        # Use cached paper metadata
+        max_year = max(
+            paper1_info.get("year", 2000),
+            paper2_info.get("year", 2000),
+            contradiction.get("year", 2000)
+        )
+        if max_year >= 2023:
+            recency_score = 3
+        elif max_year >= 2020:
+            recency_score = 2
+    else:
+        # Fallback: try to get year from contradiction dict
+        max_year = contradiction.get("year", 2000)
+        if max_year >= 2023:
+            recency_score = 3
+        elif max_year >= 2020:
+            recency_score = 2
+
+    # Combined scoring (alternative classification path)
+    total_score = citation_score + type_score + recency_score
+    
+    # Classification thresholds (alternative to base_impact)
+    if total_score >= 8:
+        combined_impact = "high"
+    elif total_score >= 5:
+        combined_impact = "medium"
+    else:
+        combined_impact = "low"
+    
+    # Use the higher impact level from base_impact (citations) or combined_impact (scoring)
+    if combined_impact == "high" or base_impact == "high":
+        final_impact = "high"
+    elif combined_impact == "medium" or base_impact == "medium":
+        final_impact = "medium"
+    else:
+        final_impact = "low"
+
+    # Rule 5: Resolution status boost
+    resolution_status = contradiction.get("resolution_status", "unresolved")
+    # Defensive check: ensure resolution_status is a string before calling .lower()
+    if not isinstance(resolution_status, str):
+        # Normalize non-string values to safe default
+        resolution_status = "unresolved"
+    
+    resolution_status_lower = resolution_status.lower()
+    if resolution_status_lower in ("unresolved", "ongoing"):
+        # Bump impact by one level
+        if final_impact == "low":
+            return "medium"
+        elif final_impact == "medium":
+            return "high"
+        # If already "high", stay "high"
+        return final_impact
+    else:
+        # Resolved contradictions don't get boost
+        return final_impact
 
 
-def assess_opportunity(gap: str) -> float:
+def assess_opportunity(gap: Union[str, Dict]) -> float:
     """
-    Assess research gap opportunity score (0-10).
+    Assess research gap opportunity score (0-10) using weighted combination.
 
-    Criteria:
-    - Novelty: How unexplored (0/23 papers = high novelty)
-    - Feasibility: Resources, datasets available
-    - Impact: Trending topic, citation potential
+    Scoring Formula:
+        score = (novelty_weight * novelty_score) +
+                (feasibility_weight * feasibility_score) +
+                (impact_weight * impact_score)
+
+    Weights:
+        - novelty_weight: 0.4 (40%)
+        - feasibility_weight: 0.3 (30%)
+        - impact_weight: 0.3 (30%)
+
+    Args:
+        gap: Either a string (gap description) or Dict with structured metadata:
+            - If string: Uses default fallback values
+            - If Dict: Supports keys:
+                - mention_count (int, optional): How many papers mention this gap
+                - papers_mentioning (int, optional): Alternative to mention_count
+                - papers_total (int, optional): Total papers analyzed (default: 1)
+                - resources_available (bool, optional): Whether resources exist
+                - maturity_score (float, optional): 0-10 maturity rating (default: 5.0)
+                - trend_score (float, optional): 0-10 trending score (default: 5.0)
+                - citation_potential (float, optional): 0-10 citation potential (default: 5.0)
+
+    Returns:
+        float: Opportunity score in range [0.0, 10.0]
     """
-    # TODO: Implement actual opportunity scoring
-    # For now, return mock score
-    return 8.0
+    # Normalize input: convert string to dict format
+    if isinstance(gap, str):
+        gap_metadata = {"description": gap}
+    else:
+        gap_metadata = gap.copy()
+
+    # Weight configuration
+    NOVELTY_WEIGHT = 0.4
+    FEASIBILITY_WEIGHT = 0.3
+    IMPACT_WEIGHT = 0.3
+
+    # 1. Novelty Score (0-10): Inverse of mention_count/papers_total
+    # Higher novelty = fewer papers mention it
+    mention_count = gap_metadata.get("mention_count") or gap_metadata.get("papers_mentioning", 0)
+    papers_total = gap_metadata.get("papers_total", 1)
+
+    # Calculate novelty: 0 mentions = 10.0, all papers mention = 0.0
+    if papers_total == 0:
+        novelty_score = 10.0  # Maximum novelty if no papers analyzed
+    else:
+        mention_ratio = mention_count / papers_total
+        # Inverse: fewer mentions = higher novelty
+        novelty_score = 10.0 * (1.0 - mention_ratio)
+        novelty_score = max(0.0, min(10.0, novelty_score))  # Clamp to [0, 10]
+
+    # 2. Feasibility Score (0-10): Resources and maturity
+    resources_available = gap_metadata.get("resources_available", False)
+    maturity_score = gap_metadata.get("maturity_score", 5.0)  # Default medium
+
+    # Boost if resources available
+    if resources_available:
+        feasibility_score = min(10.0, maturity_score + 2.0)
+    else:
+        feasibility_score = maturity_score
+
+    # Clamp to [0, 10]
+    feasibility_score = max(0.0, min(10.0, feasibility_score))
+
+    # 3. Impact Score (0-10): Trend and citation potential
+    trend_score = gap_metadata.get("trend_score", 5.0)  # Default medium
+    citation_potential = gap_metadata.get("citation_potential", 5.0)  # Default medium
+
+    # Average of trend and citation potential
+    impact_score = (trend_score + citation_potential) / 2.0
+    impact_score = max(0.0, min(10.0, impact_score))  # Clamp to [0, 10]
+
+    # Weighted combination
+    overall_score = (
+        NOVELTY_WEIGHT * novelty_score +
+        FEASIBILITY_WEIGHT * feasibility_score +
+        IMPACT_WEIGHT * impact_score
+    )
+
+    # Ensure output is in [0.0, 10.0] range
+    return max(0.0, min(10.0, overall_score))
 
 
 def get_contradiction_types(contradictions: List[Dict]) -> str:
@@ -222,6 +420,7 @@ if result:
 ## Priority 2: Enhanced Contradiction Display
 
 ### File: `src/web_ui.py`
+
 ### Location: Replace existing contradiction expander (~line 1829)
 
 ```python
@@ -369,69 +568,6 @@ def render_paper_citation_line(paper_info: Dict) -> None:
     """)
 
 
-def classify_contradiction_impact(contradiction: Dict, papers: List[Dict]) -> str:
-    """
-    Classify contradiction impact using multiple factors.
-
-    High Impact:
-    - Methodological debates affecting study design
-    - Papers with >500 citations
-    - Unresolved debates from recent years
-
-    Medium Impact:
-    - Conceptual disagreements
-    - Papers with 100-500 citations
-    - Ongoing but not critical
-
-    Low Impact:
-    - Terminology differences
-    - Papers with <100 citations
-    - Minor discrepancies
-    """
-    # Get paper metadata
-    paper1 = find_paper_metadata(contradiction.get("paper1"), papers)
-    paper2 = find_paper_metadata(contradiction.get("paper2"), papers)
-
-    # Citation-based scoring
-    max_citations = max(
-        paper1.get("citations", 0),
-        paper2.get("citations", 0)
-    )
-
-    # Type-based scoring
-    contradiction_type = contradiction.get("type", "").lower()
-    type_score = {
-        "methodological": 3,
-        "conceptual": 2,
-        "terminology": 1
-    }.get(contradiction_type, 2)
-
-    # Recency score (newer = more relevant)
-    max_year = max(
-        paper1.get("year", 2000),
-        paper2.get("year", 2000)
-    )
-    recency_score = 3 if max_year >= 2023 else (2 if max_year >= 2020 else 1)
-
-    # Combined scoring
-    total_score = 0
-    if max_citations > 500:
-        total_score += 3
-    elif max_citations > 100:
-        total_score += 2
-    else:
-        total_score += 1
-
-    total_score += type_score
-    total_score += recency_score
-
-    # Classification thresholds
-    if total_score >= 8:
-        return "high"
-    elif total_score >= 5:
-        return "medium"
-    else:
-        return "low"
 
 
 def generate_contradiction_implications(
@@ -542,6 +678,7 @@ render_enhanced_contradictions(contradictions, papers, themes)
 ## Priority 3: Actionable Research Gaps
 
 ### File: `src/web_ui.py`
+
 ### Location: Replace existing gap expander (~line 1848)
 
 ```python
@@ -926,6 +1063,7 @@ render_actionable_research_gaps(gaps, papers, themes, contradictions)
 ## Priority 4: Structured Synthesis Display
 
 ### File: `src/web_ui.py`
+
 ### Location: Replace `render_synthesis_collapsible()` call
 
 ```python
@@ -1296,16 +1434,19 @@ if result.get("synthesis"):
 ### Order of Implementation
 
 1. **Research Insights Hero Section** (line ~1477)
+
    - Add after success message
    - Before efficiency comparison
    - Most visible position
 
 2. **Enhanced Contradiction Display** (line ~1829)
+
    - Replace existing expander
    - Add impact classification
    - Add "why this matters" section
 
 3. **Actionable Research Gaps** (line ~1848)
+
    - Replace existing expander
    - Add opportunity assessment
    - Add suggested next steps

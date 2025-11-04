@@ -48,19 +48,55 @@ class PaperSourceConfig:
     @classmethod
     def from_env(cls) -> 'PaperSourceConfig':
         """Load configuration from environment variables"""
+        # Get API keys
+        ieee_key = os.getenv("IEEE_API_KEY")
+        acm_key = os.getenv("ACM_API_KEY")
+        springer_key = os.getenv("SPRINGER_API_KEY")
+        
+        # Auto-enable sources if API keys are present (unless explicitly disabled)
+        # This provides better UX - if you have the key, use it!
+        enable_ieee_env = os.getenv("ENABLE_IEEE", "").lower()
+        enable_acm_env = os.getenv("ENABLE_ACM", "").lower()
+        enable_springer_env = os.getenv("ENABLE_SPRINGER", "").lower()
+        
+        # Logic: If enable flag is explicitly set, use it; otherwise auto-enable if key exists
+        if enable_ieee_env == "true":
+            enable_ieee = True
+        elif enable_ieee_env == "false":
+            enable_ieee = False
+        else:
+            # Auto-enable if API key is present
+            enable_ieee = bool(ieee_key)
+        
+        if enable_acm_env == "true":
+            enable_acm = True
+        elif enable_acm_env == "false":
+            enable_acm = False
+        else:
+            # Auto-enable if API key is present
+            enable_acm = bool(acm_key)
+        
+        if enable_springer_env == "true":
+            enable_springer = True
+        elif enable_springer_env == "false":
+            enable_springer = False
+        else:
+            # Auto-enable if API key is present
+            enable_springer = bool(springer_key)
+        
         return cls(
             semantic_scholar_api_key=os.getenv("SEMANTIC_SCHOLAR_API_KEY"),
             crossref_mailto=os.getenv("CROSSREF_MAILTO", "research-ops@example.com"),
-            ieee_api_key=os.getenv("IEEE_API_KEY"),
-            acm_api_key=os.getenv("ACM_API_KEY"),
-            springer_api_key=os.getenv("SPRINGER_API_KEY"),
+            ieee_api_key=ieee_key,
+            acm_api_key=acm_key,
+            springer_api_key=springer_key,
             enable_arxiv=os.getenv("ENABLE_ARXIV", "true").lower() == "true",
             enable_pubmed=os.getenv("ENABLE_PUBMED", "true").lower() == "true",
             enable_semantic_scholar=os.getenv("ENABLE_SEMANTIC_SCHOLAR", "true").lower() == "true",
             enable_crossref=os.getenv("ENABLE_CROSSREF", "true").lower() == "true",
-            enable_ieee=os.getenv("ENABLE_IEEE", "false").lower() == "true",
-            enable_acm=os.getenv("ENABLE_ACM", "false").lower() == "true",
-            enable_springer=os.getenv("ENABLE_SPRINGER", "false").lower() == "true",
+            enable_ieee=enable_ieee,
+            enable_acm=enable_acm,
+            enable_springer=enable_springer,
         )
 
 

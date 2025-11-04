@@ -63,10 +63,8 @@ class TestScoutAgentFeatures:
             assert source_ids == {'arxiv', 'pubmed', 'ss'}
 
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="_deduplicate_papers method not yet implemented")
     async def test_semantic_deduplication(self, scout_agent):
         """Test Scout deduplicates similar papers using embeddings"""
-        # This test is for a future feature - method not yet implemented
         # Create duplicate papers with different IDs
         papers = [
             Paper(id="p1", title="Deep Learning", authors=["A"],
@@ -76,19 +74,39 @@ class TestScoutAgentFeatures:
             Paper(id="p3", title="Quantum Computing", authors=["C"],
                   abstract="Quantum algorithms for optimization", url="url3")
         ]
+        
+        # Add mock embeddings to papers (required for deduplication)
+        papers[0].embedding = [0.1] * 1024  # p1 embedding
+        papers[1].embedding = [0.1] * 1024  # p2 embedding (same as p1 - will be duplicate)
+        papers[2].embedding = [0.9] * 1024  # p3 embedding (different - will be kept)
 
-        # Mock high similarity between p1 and p2, low with p3
-        scout_agent.embedding_client.cosine_similarity = Mock(side_effect=[
-            0.95,  # p1 vs p2 (duplicate)
-            0.3,   # p1 vs p3 (different)
-            0.3    # p2 vs p3 (different)
-        ])
+        # Mock cosine_similarity to return high similarity for p1 vs p2, low for others
+        def mock_similarity(emb1, emb2):
+            # Check if comparing p1 and p2 (both have [0.1] * 1024)
+            if emb1 == papers[0].embedding and emb2 == papers[1].embedding:
+                return 0.95
+            # Check if comparing p1 and p3
+            if (emb1 == papers[0].embedding and emb2 == papers[2].embedding) or \
+               (emb1 == papers[2].embedding and emb2 == papers[0].embedding):
+                return 0.3
+            # Check if comparing p2 and p3
+            if (emb1 == papers[1].embedding and emb2 == papers[2].embedding) or \
+               (emb1 == papers[2].embedding and emb2 == papers[1].embedding):
+                return 0.3
+            # Same embeddings = high similarity
+            if emb1 == emb2:
+                return 1.0
+            return 0.5  # default
+        
+        scout_agent.embedding_client.cosine_similarity = mock_similarity
 
         deduplicated = await scout_agent._deduplicate_papers(papers)
 
         # Should remove p2 as duplicate of p1
         assert len(deduplicated) == 2
         assert "p2" not in [p.id for p in deduplicated]
+        assert "p1" in [p.id for p in deduplicated]
+        assert "p3" in [p.id for p in deduplicated]
 
     @pytest.mark.asyncio
     async def test_decision_logging_search_expansion(self, scout_agent):

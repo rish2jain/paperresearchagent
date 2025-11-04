@@ -1,5 +1,5 @@
 """
-Visualization utilities for ResearchOps Agent
+Visualization utilities for Agentic Researcher
 Provides reusable visualization functions using Plotly
 """
 

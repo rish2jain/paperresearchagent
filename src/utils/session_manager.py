@@ -1,5 +1,5 @@
 """
-Session Manager for Research Ops Agent Web UI
+Session Manager for Agentic Researcher Web UI
 
 Provides centralized session state management with clear structure and lifecycle methods.
 Replaces scattered st.session_state access with a clean API.
@@ -141,7 +141,7 @@ class ResearchSession:
 
 class SessionManager:
     """
-    Centralized session state management for Research Ops Agent.
+    Centralized session state management for Agentic Researcher.
 
     Provides clean API for managing research session state instead of
     scattered st.session_state access throughout the codebase.

@@ -1,5 +1,7 @@
 # Troubleshooting Guide
 
+**Last Updated:** 2025-01-15
+
 This guide helps you diagnose and fix common issues with ResearchOps Agent.
 
 ## Table of Contents
@@ -44,6 +46,56 @@ kubectl exec -n research-ops deployment/agent-orchestrator -- \
    - **Pod not running**: Check GPU availability, resource limits
    - **Image pull errors**: Verify NGC_API_KEY in secrets
    - **Port conflicts**: Ensure port 8000 is not in use
+
+### Problem: NGC API Key Issues (401/403 Errors)
+
+**Symptoms:**
+- Pod shows `ImagePullBackOff` or `401 Unauthorized` errors
+- NIM fails to authenticate with NGC
+- Logs show: `Failed to pull image "nvcr.io/..."`
+
+**Solutions:**
+
+1. **Find your working NGC API key:**
+```bash
+# Try these locations:
+cat ~/.docker/config.json | grep -A5 nvcr.io
+# OR
+cat ~/.ngc/config
+# OR
+echo $NGC_API_KEY
+```
+
+2. **Update Kubernetes secret:**
+```bash
+# Export your working key
+export NGC_API_KEY='nvapi-YOUR-WORKING-KEY'
+
+# Use the update script (if available)
+./scripts/update-ngc-key.sh
+
+# OR manually update:
+kubectl create secret generic nvidia-ngc-secret \
+  --from-literal=NGC_API_KEY=$NGC_API_KEY \
+  --dry-run=client -o yaml | kubectl apply -f - -n research-ops
+```
+
+3. **Restart the deployment:**
+```bash
+kubectl rollout restart deployment/reasoning-nim -n research-ops
+kubectl rollout restart deployment/embedding-nim -n research-ops
+```
+
+4. **Monitor progress:**
+```bash
+watch kubectl get pods -n research-ops
+# Wait for pods to become Ready (may take 5-10 minutes)
+```
+
+5. **Get NGC API key from website:**
+   - Go to: https://org.ngc.nvidia.com/setup/api-key
+   - Copy existing key or generate new one (Full Access)
+   - See [docs/GET_NGC_KEY.md](../docs/GET_NGC_KEY.md) for detailed instructions
 
 ### Problem: Embedding NIM not responding
 

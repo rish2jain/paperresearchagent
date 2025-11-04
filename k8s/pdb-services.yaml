@@ -1,0 +1,32 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: agent-orchestrator-pdb
+  namespace: research-ops
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: agent-orchestrator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web-ui-pdb
+  namespace: research-ops
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web-ui
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: qdrant-pdb
+  namespace: research-ops
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: qdrant

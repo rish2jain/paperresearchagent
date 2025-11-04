@@ -1,0 +1,22 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: reasoning-nim-pdb
+  namespace: research-ops
+spec:
+  minAvailable: 1  # At least 1 pod must be available during disruptions
+  selector:
+    matchLabels:
+      app: reasoning-nim
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: embedding-nim-pdb
+  namespace: research-ops
+spec:
+  minAvailable: 1  # At least 1 pod must be available during disruptions
+  selector:
+    matchLabels:
+      app: embedding-nim
+

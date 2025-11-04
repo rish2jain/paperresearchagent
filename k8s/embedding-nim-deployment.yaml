@@ -8,6 +8,9 @@ metadata:
     component: embedding-inference
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: embedding-nim
@@ -66,8 +69,8 @@ spec:
             cpu: "2"
             nvidia.com/gpu: "1"
           limits:
-            memory: "16Gi"
-            cpu: "4"
+            memory: "10Gi"  # Optimized for 2-node setup
+            cpu: "2.5"      # Optimized to fit within node capacity
             nvidia.com/gpu: "1"
 
         livenessProbe:

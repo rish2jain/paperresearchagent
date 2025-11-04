@@ -22,6 +22,7 @@ This directory contains comprehensive technical documentation for ResearchOps Ag
 
 ### Configuration & Setup
 - **[API_KEYS_SETUP.md](API_KEYS_SETUP.md)** - API keys for data sources
+- **[GET_NGC_KEY.md](GET_NGC_KEY.md)** - NVIDIA NGC API key setup
 - **[PAPER_SOURCES.md](PAPER_SOURCES.md)** - Academic database integration (7 sources)
 - **[Architecture_Diagrams.md](Architecture_Diagrams.md)** - System architecture diagrams
 
@@ -63,6 +64,7 @@ This directory contains comprehensive technical documentation for ResearchOps Ag
 docs/
 ├── README.md (this file)
 ├── API_KEYS_SETUP.md           # API key configuration
+├── GET_NGC_KEY.md              # NVIDIA NGC API key setup
 ├── Architecture_Diagrams.md    # System architecture
 ├── AWS_SETUP_GUIDE.md          # AWS credentials setup
 ├── DISASTER_RECOVERY.md        # Backup & recovery
@@ -70,6 +72,8 @@ docs/
 ├── MONITORING_AND_ALERTING.md  # Metrics & monitoring
 ├── PAPER_SOURCES.md            # Data source integration (7 sources)
 ├── PRODUCTION_DEPLOYMENT.md    # Production deployment
+├── SSE_STREAMING_GUIDE.md      # Server-Sent Events streaming
+├── Phase2.2_Progressive_Disclosure_Summary.md  # UX feature summary
 └── TROUBLESHOOTING.md          # Common issues & solutions
 ```
 

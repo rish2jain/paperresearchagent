@@ -681,3 +681,7 @@ eksctl delete cluster --name research-ops-cluster --region us-east-1
 **Built with ❤️ for the research community**
 
 _Making literature review delightful, one paper at a time._
+
+---
+
+**Last Updated:** November 4, 2025

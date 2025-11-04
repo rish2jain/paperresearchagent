@@ -1,137 +1,85 @@
 # Archive Directory
 
-**Last Updated:** 2025-01-15
+This directory contains historical documentation that has been archived for reference but is no longer actively maintained.
 
-This directory contains archived documentation files that are no longer actively maintained but kept for historical reference.
+**Archive Date:** 2025-01-15  
+**Last Updated:** 2025-01-15 (consolidation and cleanup)
 
----
+**See also:** [ARCHIVE_INDEX.md](ARCHIVE_INDEX.md) for detailed archive contents
 
-## 📁 Archive Contents
+## Directory Structure
 
-### Status and Progress Files (Historical)
-These files tracked progress during development and are now superseded by `STATUS.md`:
-- `ALL_FEATURES_COMPLETE.md` - Feature completion announcement
-- `CURRENT_STATUS.md` - Previous status reports
-- `ENHANCEMENT_COMPLETE.md` - Enhancement completion summary
-- `ENHANCEMENT_PROGRESS.md` - Progress tracking during enhancement implementation
-- `FEATURE_STATUS.md` - Feature implementation status tracking
-- `FINAL_STATUS.md` - Final status report before consolidation
-- `NEXT_STEPS_COMPLETED.md` - Completed next steps summary
-- `REMAINING_FEATURES_COMPLETED.md` - Remaining features completion
-- `REMAINING_TASKS.md` - Previous remaining tasks list
-- `SETUP_STATUS.md` - Setup status reports
+### `status_reports/`
+Obsolete status reports, phase completion documents, and implementation summaries:
+- Phase completion docs (PHASE1_COMPLETE.md, PHASE2_COMPLETE.md, etc.)
+- Implementation summaries (PHASE3_IMPLEMENTATION_SUMMARY.md, IMPLEMENTATION_SUMMARY.md, etc.)
+- Test reports (FINAL_TESTING_REPORT.md, TESTING_RESULTS_SUMMARY.md, USER_TESTING_PLAN.md, MISSING_TESTS_REPORT.md, NEW_TESTS_SUMMARY.md, TEST_COVERAGE_REPORT.md, BROWSER_UI_TEST_REPORT.md)
+- Fix summaries (ALL_FIXES_COMPLETE.md, CRITICAL_FIXES_APPLIED.md, FIX_403.md)
+- Documentation update summaries (HACKATHON_DOCS_UPDATE_SUMMARY.md, DOCUMENTATION_CONSOLIDATION_SUMMARY.md)
+- Code review and enhancement summaries (CODE_REVIEW_ENHANCEMENTS.md, ENHANCEMENTS_COMPLETE.md)
 
-**Current Reference:** See `../STATUS.md` for current status
+**Note:** These files document completed work and are kept for historical reference.
 
----
+### `root_docs/`
+Obsolete documentation files that were moved from the root directory:
+- Architecture and technical reviews (ARCHITECTURE_REVIEW.md, TECHNICAL_REVIEW.md)
+- Validation guides (COMPLETE_VALIDATION_GUIDE.md, FINAL_VALIDATION_SUMMARY.md)
+- Action items and recommendations (ACTION.md, ACTION_RECOMMENDATIONS.md, QUICK_ACTIONS.md)
+- Performance and comparison docs (LAZY_LOADING_PERFORMANCE.md, COMPARE_NVIDIA_SETUP.md)
+- Deployment options (DEPLOYMENT_OPTIONS.md)
+- UX diagnostic and enhancement plans (UX_DIAGNOSTIC_REPORT.md, UX_ENHANCEMENT_MASTER_PLAN.md)
+- Judge evaluation reference (JUDGE_EVALUATION_REFERENCE.md)
 
-### Implementation and Planning Files (Historical)
-These files documented implementation plans and strategies:
-- `DELIVERABLES_SUMMARY.md` - Project deliverables summary
-- `IMPLEMENTATION_PLAN.md` - Original implementation plan
-- `IMPLEMENTATION_SUMMARY.md` - Implementation summary
-- `IMPROVEMENTS_RESEARCH_BASED.md` - Source document for research-based improvements (preserved as reference)
-- `IMPROVEMENTS_SUMMARY.md` - Improvements summary
-- `MULTI_SOURCE_IMPLEMENTATION.md` - Multi-source implementation details
-- `WINNING_STRATEGY.md` - Strategy document for hackathon submission
+### `security_docs/`
+Security-related documentation:
+- Security audit reports (SECURITY_AUDIT_REPORT.md, SECURITY_AUDIT_EXECUTIVE_SUMMARY.md)
+- Security immediate actions (SECURITY_IMMEDIATE_ACTIONS.md)
+- Secrets removal guide (SECRETS_REMOVAL_GUIDE.md)
 
-**Current Reference:** See `../README.md` and `../docs/` for current documentation
+### `operations/`
+Historical operations and troubleshooting documentation:
+- Deployment fix summaries (DEPLOYMENT_SUCCESS_SUMMARY.md, DEPLOYMENT_FIX_SUMMARY.md)
+- K8S improvements and fixes (K8S_IMPROVEMENTS_APPLIED.md, K8S_PENDING_PODS_FIX.md)
+- Docker fixes (DOCKER_FIX_SUMMARY.md)
+- Post-hackathon implementation summaries
+- Advanced exports and mobile UI summaries
+- Action and resolution summaries
+- NGC authentication and licensing fixes
+- Deployment troubleshooting guides
 
----
+### `claudedocs/`
+UX design and implementation documentation:
+- Comprehensive review synthesis
+- UX audit documents (comprehensive, dashboard, index, summary)
+- UX analysis and enhancement guides
+- Implementation summaries (phase 1, priority 2, etc.)
+- Testing action plans and quality assessments
+- Visual transformation examples and wireframes
 
-### Deployment and Troubleshooting Files (Historical)
-These files documented deployment issues and troubleshooting:
-- `NEXT_STEPS.md` - Previous next steps for k8s deployment
-- `QUOTA_ISSUES_SUMMARY.md` - AWS quota issues summary
-- `VCPU_LIMIT_ISSUE.md` - VCPU limit issue documentation
+### `temp_scripts/`
+Temporary scripts and test files:
+- Docker verification and testing scripts
+- Deployment helper scripts
+- Temporary test files and logs
+- Backup files (.bak)
+- Historical debugging scripts
 
-**Operations Archive (`operations/`):**
-Historical operational documentation moved to `archive/operations/`:
-- `DEPLOYMENT_STATUS.md` - Previous deployment status reports
-- `DEPLOYMENT_TROUBLESHOOTING.md` - Deployment troubleshooting notes
-- `DEPLOYMENT_FIX_SUMMARY.md` - Specific deployment fixes (now consolidated in TROUBLESHOOTING.md)
-- `NIM_LICENSING_FIX.md` - NGC licensing troubleshooting (now in TROUBLESHOOTING.md)
-- `QUICK_FIX.md` - Quick fix guide (historical)
-- `UPDATE_NGC_KEY_INSTRUCTIONS.md` - NGC key update instructions (historical)
-- `NGC_AUTH_RESOLUTION_GUIDE.md` - NGC authentication resolution
-- `RESOLUTION_SUMMARY.md` - Issue resolution summaries
-- `ACTION_SUMMARY.md` - Action summaries
-- `DEPLOYMENT_ACTION_STATUS.md` - Deployment action status
-- `POST_HACKATHON_IMPLEMENTATION_SUMMARY.md` - Post-hackathon implementation details
-- `POST_HACKATHON_ROADMAP.md` - Post-hackathon roadmap (historical)
-- `ADVANCED_EXPORTS_MOBILE_UI_SUMMARY.md` - Feature implementation summary (historical)
-- `NEXT_STEPS.md` - Next steps documentation (historical)
-- `DEPLOYMENT_STATUS_NOW.md` - Specific deployment status snapshot (historical)
+## When to Use Archived Docs
 
-**Current Reference:** See `../k8s/DEPLOYMENT_STATUS.md` and `../docs/TROUBLESHOOTING.md`
+These documents are preserved for:
+- **Historical reference**: Understanding development progression
+- **Context**: Reviewing past decisions and implementations
+- **Troubleshooting**: Historical issues that may resurface
 
----
+**Note:** For current information, always refer to:
+- [README.md](../README.md) - Main project documentation
+- [STATUS.md](../STATUS.md) - Current project status
+- [docs/TROUBLESHOOTING.md](../docs/TROUBLESHOOTING.md) - Current troubleshooting guide
+- [DOCUMENTATION_INDEX.md](../DOCUMENTATION_INDEX.md) - Active documentation index
 
-### Submission Files (Historical)
-- `SUBMISSION_REVIEW.md` - Submission review documentation
+## Archive Maintenance
 
-**Current Reference:** See `../HACKATHON_SETUP_GUIDE.md` for submission process
-
----
-
-## 📋 Current Documentation Structure
-
-All information from archived files has been consolidated into:
-
-### Root Documentation
-- `README.md` - Main project documentation
-- `STATUS.md` - Current project status
-- `QUICK_START.md` - Quick setup guide
-- `HACKATHON_SETUP_GUIDE.md` - Setup and submission guide
-- `DEPLOYMENT.md` - Deployment guide
-- `TESTING_GUIDE.md` - Testing guide
-- `DOCKER_TESTING.md` - Docker testing guide
-
-### Technical Documentation (`docs/`)
-- `docs/README.md` - Documentation index
-- `docs/PAPER_SOURCES.md` - Paper source integration (7 sources)
-- `docs/API_KEYS_SETUP.md` - API configuration
-- `docs/Architecture_Diagrams.md` - System architecture
-- `docs/AWS_SETUP_GUIDE.md` - AWS setup
-- `docs/PRODUCTION_DEPLOYMENT.md` - Production deployment
-- `docs/TROUBLESHOOTING.md` - Troubleshooting guide
-- `docs/MONITORING_AND_ALERTING.md` - Monitoring guide
-- `docs/DISASTER_RECOVERY.md` - Disaster recovery
-- `docs/EKS_vs_SageMaker_Comparison.md` - Platform comparison
-
-### Kubernetes Documentation (`k8s/`)
-- `k8s/README.md` - Kubernetes deployment overview
-- `k8s/DEPLOYMENT_STATUS.md` - Current deployment status
-- `k8s/AWS_QUOTA_GUIDE.md` - AWS quota management
-- `k8s/AUTO_DEPLOY_README.md` - Automated deployment guide
-
----
-
-## 🔍 Finding Information
-
-If you're looking for specific information:
-
-1. **Current Status**: See `../STATUS.md`
-2. **Setup Instructions**: See `../HACKATHON_SETUP_GUIDE.md`
-3. **Deployment**: See `../DEPLOYMENT.md` or `../k8s/DEPLOYMENT_STATUS.md`
-4. **Troubleshooting**: See `../docs/TROUBLESHOOTING.md`
-5. **Features**: See `../README.md` or `../STATUS.md`
-6. **API Configuration**: See `../docs/API_KEYS_SETUP.md`
-
----
-
-## 📅 Archive Maintenance
-
-**Last Consolidated:** 2025-01-15
-
-Archived files are kept for:
-- Historical reference
-- Understanding development progression
-- Debugging specific historical issues
-- Learning from past implementation approaches
-
-These files are **not actively maintained** and may contain outdated information. Always refer to the current documentation in the root and `docs/` directories.
-
----
-
-**Note:** The archive preserves development history. For current information, always check the main documentation structure.
+This archive is maintained for historical reference only. Files are not updated after archiving. If you need information from archived docs, consider:
+1. Checking if the information exists in current documentation
+2. Creating a new issue or documentation update if needed
+3. Referring to archived docs only when current docs don't cover the topic

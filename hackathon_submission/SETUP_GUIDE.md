@@ -1391,5 +1391,5 @@ You have a strong, competitive entry that meets all requirements and demonstrate
 
 ---
 
-_Last Updated: 2025-01-01_  
+_Last Updated: November 4, 2025_  
 _Guide Version: 1.0_

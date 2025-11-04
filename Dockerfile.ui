@@ -14,8 +14,11 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy source code (all modules web_ui.py depends on)
-COPY src/*.py /app/
+# Copy source code (all modules web_ui.py depends on, including subdirectories)
+COPY src/ /app/
+
+# Set PYTHONPATH to ensure imports work correctly
+ENV PYTHONPATH=/app
 
 # Create non-root user
 RUN useradd -m -u 1000 appuser && \

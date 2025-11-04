@@ -45,8 +45,9 @@ This folder contains all documentation required for the hackathon submission:
 1. **[UX_SHOWCASE.md](UX_SHOWCASE.md)** - **User experience innovation and metrics**
 2. **[JUDGE_TESTING_GUIDE.md](JUDGE_TESTING_GUIDE.md)** - Step-by-step testing (30 min)
 3. **[DEMO_VIDEO_SCRIPT.md](DEMO_VIDEO_SCRIPT.md)** - 5-minute demo walkthrough
-4. **[SUBMISSION_SUMMARY.md](SUBMISSION_SUMMARY.md)** - Executive summary
-5. **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - Complete project overview
+4. **[HACKATHON_DEMO_CHECKLIST.md](HACKATHON_DEMO_CHECKLIST.md)** - Pre-demo checklist and demo day guide
+5. **[SUBMISSION_SUMMARY.md](SUBMISSION_SUMMARY.md)** - Executive summary
+6. **[PROJECT_OVERVIEW.md](PROJECT_OVERVIEW.md)** - Complete project overview
 
 ### Technical Details
 
@@ -180,7 +181,7 @@ For questions about this submission:
 
 ---
 
-**Status:** ✅ Ready for Submission
+**Status:** ✅ Submitted
 
-**Last Updated:** November 3, 2025
+**Last Updated:** November 4, 2025
 

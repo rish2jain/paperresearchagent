@@ -8,6 +8,7 @@ metadata:
     component: vector-database
 spec:
   replicas: 1
+  revisionHistoryLimit: 3
   selector:
     matchLabels:
       app: qdrant
@@ -37,8 +38,8 @@ spec:
             memory: "2Gi"
             cpu: "1"
           limits:
-            memory: "4Gi"
-            cpu: "2"
+            memory: "3Gi"   # Optimized for 2-node setup
+            cpu: "1.5"      # Optimized to fit within node capacity
 
         volumeMounts:
         - name: qdrant-storage

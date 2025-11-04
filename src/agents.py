@@ -45,7 +45,10 @@ except ImportError:
 
 # Optional import for input sanitization with fallback
 try:
-    from input_sanitization import ValidationError
+    try:
+        from exceptions import ValidationError
+    except ImportError:
+        from input_sanitization import ValidationError
 except ImportError:
     # Fallback if input_sanitization not available
     ValidationError = ValueError
@@ -180,6 +183,7 @@ class Synthesis:
     contradictions: List[Dict[str, Any]]
     gaps: List[str]
     recommendations: List[str]
+    enhanced_insights: Optional[Dict[str, Any]] = None  # Enhanced insights from enhanced_insights module
 
 
 class AgentDecision(Enum):
@@ -356,14 +360,95 @@ class ScoutAgent:
                 }
             )
 
-        self.papers_found.extend(selected_papers)
+        # Step 7: Semantic deduplication to remove near-duplicate papers
+        deduplicated_papers = await self._deduplicate_papers(selected_papers)
+        
+        if len(deduplicated_papers) < len(selected_papers):
+            # 🎯 LOG DEDUPLICATION DECISION
+            self.decision_log.log_decision(
+                agent="Scout",
+                decision_type="SEMANTIC_DEDUPLICATION",
+                decision=f"REMOVED {len(selected_papers) - len(deduplicated_papers)} duplicate papers",
+                reasoning=f"Applied semantic similarity threshold (0.95) to identify and remove "
+                         f"near-duplicate papers based on embedding similarity.",
+                nim_used="nv-embedqa-e5-v5 (Embedding NIM)",
+                metadata={
+                    "before": len(selected_papers),
+                    "after": len(deduplicated_papers),
+                    "removed": len(selected_papers) - len(deduplicated_papers)
+                }
+            )
+
+        self.papers_found.extend(deduplicated_papers)
 
         logger.info(
-            f"✅ Scout Agent: Found {len(selected_papers)} relevant papers "
-            f"(filtered from {len(candidate_papers)} candidates)"
+            f"✅ Scout Agent: Found {len(deduplicated_papers)} relevant papers "
+            f"(filtered from {len(candidate_papers)} candidates, "
+            f"removed {len(selected_papers) - len(deduplicated_papers)} duplicates)"
         )
 
-        return selected_papers
+        return deduplicated_papers
+
+    async def _deduplicate_papers(self, papers: List[Paper], similarity_threshold: float = 0.95) -> List[Paper]:
+        """
+        Remove duplicate papers using semantic similarity.
+        
+        Uses embedding similarity to identify papers that are semantically
+        very similar (likely duplicates or near-duplicates) and keeps only
+        the first occurrence of each group.
+        
+        Args:
+            papers: List of papers to deduplicate
+            similarity_threshold: Minimum similarity score to consider papers duplicates (default: 0.95)
+        
+        Returns:
+            List of deduplicated papers
+        """
+        if len(papers) <= 1:
+            return papers
+        
+        # Papers that have embeddings from the search phase
+        papers_with_embeddings = [p for p in papers if hasattr(p, 'embedding') and p.embedding is not None]
+        
+        if len(papers_with_embeddings) < 2:
+            # Not enough papers with embeddings to deduplicate
+            return papers
+        
+        # Build similarity matrix and identify duplicates
+        to_remove = set()
+        
+        for i, paper1 in enumerate(papers_with_embeddings):
+            if paper1.id in to_remove:
+                continue
+            
+            # Check against remaining papers
+            for paper2 in papers_with_embeddings[i+1:]:
+                if paper2.id in to_remove:
+                    continue
+                
+                # Calculate similarity
+                similarity = self.embedding_client.cosine_similarity(
+                    paper1.embedding,
+                    paper2.embedding
+                )
+                
+                # If similarity is above threshold, mark paper2 for removal
+                if similarity >= similarity_threshold:
+                    to_remove.add(paper2.id)
+                    logger.debug(
+                        f"Removing duplicate paper: '{paper2.title[:50]}...' "
+                        f"(similarity: {similarity:.3f} with '{paper1.title[:50]}...')"
+                    )
+        
+        # Return papers in original order (minus removed ones)
+        result = []
+        seen_ids = set()
+        for paper in papers:
+            if paper.id not in to_remove and paper.id not in seen_ids:
+                result.append(paper)
+                seen_ids.add(paper.id)
+        
+        return result
 
     async def _search_arxiv(self, query: str) -> List[Paper]:
         """Search arXiv using real API"""
@@ -982,7 +1067,7 @@ class AnalystAgent:
     def __init__(self, reasoning_client: ReasoningNIMClient):
         self.reasoning_client = reasoning_client
 
-    async def analyze(self, paper: Paper) -> Analysis:
+    async def analyze(self, paper: Paper, include_full_text: bool = False) -> Analysis:
         """
         Analyze a paper and extract structured information
 
@@ -1224,7 +1309,8 @@ Research gaps and future directions:
             common_themes=themes,
             contradictions=contradictions,
             gaps=gaps,
-            recommendations=[]
+            recommendations=[],
+            enhanced_insights=None  # Will be populated after synthesis
         )
 
         logger.info(
@@ -1236,21 +1322,144 @@ Research gaps and future directions:
 
         return synthesis
     
+    async def generate_enhanced_insights(
+        self,
+        papers: List[Any],
+        analyses: List[Analysis],
+        synthesis: Synthesis
+    ) -> Synthesis:
+        """
+        Generate enhanced insights and add to synthesis.
+        
+        This adds meta-analysis, consensus tracking, maturity scoring,
+        and research opportunities to dramatically improve insights quality.
+        """
+        try:
+            from enhanced_insights import EnhancedInsightsGenerator
+            
+            generator = EnhancedInsightsGenerator(self.reasoning_client)
+            
+            # Convert to dict format for enhanced insights
+            papers_dict = [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "authors": p.authors,
+                    "abstract": p.abstract,
+                    "url": p.url,
+                    "source": p.id.split('-')[0] if '-' in p.id else "unknown"
+                }
+                for p in papers
+            ]
+            
+            analyses_dict = [
+                {
+                    "paper_id": a.paper_id,
+                    "research_question": a.research_question,
+                    "methodology": a.methodology,
+                    "key_findings": a.key_findings,
+                    "limitations": a.limitations,
+                    "confidence": a.confidence,
+                    "metadata": a.metadata or {}
+                }
+                for a in analyses
+            ]
+            
+            enhanced = await generator.generate_insights(
+                papers=papers_dict,
+                analyses=analyses_dict,
+                synthesis=synthesis,
+                themes=synthesis.common_themes,
+                contradictions=synthesis.contradictions,
+                gaps=synthesis.gaps
+            )
+            
+            # Convert enhanced insights to dict for serialization
+            synthesis.enhanced_insights = {
+                "field_maturity": {
+                    "maturity_score": enhanced.field_maturity.maturity_score if enhanced.field_maturity else None,
+                    "maturity_level": enhanced.field_maturity.maturity_level if enhanced.field_maturity else None,
+                    "reasoning": enhanced.field_maturity.reasoning if enhanced.field_maturity else None
+                } if enhanced.field_maturity else None,
+                "research_opportunities": [
+                    {
+                        "description": opp.description,
+                        "priority": opp.priority,
+                        "papers_mentioning": opp.papers_mentioning,
+                        "papers_solving": opp.papers_solving,
+                        "opportunity_score": opp.opportunity_score,
+                        "suggested_approaches": opp.suggested_approaches,
+                        "difficulty": opp.difficulty,
+                        "impact": opp.impact
+                    }
+                    for opp in enhanced.research_opportunities
+                ],
+                "consensus_scores": [
+                    {
+                        "topic": score.topic,
+                        "consensus_percentage": score.consensus_percentage,
+                        "papers_supporting": score.papers_supporting,
+                        "papers_contradicting": score.papers_contradicting,
+                        "consensus_level": score.consensus_level,
+                        "confidence": score.confidence
+                    }
+                    for score in enhanced.consensus_scores
+                ],
+                "hot_debates": [
+                    {
+                        "topic": debate.topic,
+                        "pro_papers": debate.pro_papers,
+                        "con_papers": debate.con_papers,
+                        "pro_arguments": debate.pro_arguments,
+                        "con_arguments": debate.con_arguments,
+                        "verdict": debate.verdict,
+                        "controversy_score": debate.controversy_score
+                    }
+                    for debate in enhanced.hot_debates
+                ],
+                "expert_guidance": {
+                    "thought_leaders": enhanced.expert_guidance.thought_leaders if enhanced.expert_guidance else [],
+                    "leading_institutions": enhanced.expert_guidance.leading_institutions if enhanced.expert_guidance else [],
+                    "most_cited_papers": enhanced.expert_guidance.most_cited_papers if enhanced.expert_guidance else [],
+                    "foundational_papers": enhanced.expert_guidance.foundational_papers if enhanced.expert_guidance else []
+                } if enhanced.expert_guidance else None,
+                "meta_analysis": enhanced.meta_analysis,
+                "starter_questions": enhanced.starter_questions
+            }
+            
+            logger.info("✅ Enhanced insights generated successfully")
+            
+        except ImportError as e:
+            logger.warning(f"Enhanced insights module not available: {e}")
+            synthesis.enhanced_insights = None
+        except Exception as e:
+            logger.error(f"Error generating enhanced insights: {e}")
+            synthesis.enhanced_insights = None
+        
+        return synthesis
+    
     async def refine_synthesis(
         self,
         synthesis: Synthesis,
         analyses: List[Analysis],
-        iteration: int = 1
+        iteration: int = 1,
+        strategy: str = "comprehensive"
     ) -> Synthesis:
         """
-        Refine synthesis to improve quality
+        Refine synthesis with adaptive strategy
         
         This demonstrates ADAPTIVE AGENTIC BEHAVIOR:
         - Evaluate current quality
         - Identify areas for improvement
-        - Refine based on feedback
+        - Refine based on feedback with adaptive strategy
+        
+        Args:
+            synthesis: Current synthesis to refine
+            analyses: List of paper analyses
+            iteration: Current refinement iteration
+            strategy: Refinement strategy - "themes", "contradictions", "gaps", or "comprehensive"
         """
-        logger.info(f"🧩 Synthesizer: Refining synthesis (iteration {iteration})")
+        logger.info(f"🧩 Synthesizer: Refining synthesis (iteration {iteration}, strategy: {strategy})")
         
         # Step 1: Evaluate current quality
         quality_score = await self._evaluate_synthesis_quality(synthesis)
@@ -1260,13 +1469,14 @@ Research gaps and future directions:
             agent="Synthesizer",
             decision_type="QUALITY_EVALUATION",
             decision=f"QUALITY_SCORE: {quality_score:.2f}",
-            reasoning=f"Iteration {iteration}: Evaluated synthesis quality. "
+            reasoning=f"Iteration {iteration}: Evaluated synthesis quality using {strategy} strategy. "
                      f"Score {quality_score:.2f} based on theme coherence, "
                      f"contradiction clarity, and gap specificity.",
             nim_used="llama-3.1-nemotron-nano-8B-v1 (Reasoning NIM)",
             metadata={
                 "iteration": iteration,
                 "quality_score": quality_score,
+                "strategy": strategy,
                 "themes_count": len(synthesis.common_themes),
                 "contradictions_count": len(synthesis.contradictions),
                 "gaps_count": len(synthesis.gaps)
@@ -1283,22 +1493,22 @@ Research gaps and future directions:
                 reasoning=f"Quality score {quality_score:.2f} exceeds threshold {quality_threshold:.2f}. "
                          f"Synthesis is complete and comprehensive.",
                 nim_used=None,
-                metadata={"final_quality_score": quality_score}
+                metadata={"final_quality_score": quality_score, "strategy": strategy}
             )
             return synthesis
         
-        # Step 3: Refine synthesis
-        refined_synthesis = await self._refine_synthesis(synthesis, quality_score)
+        # Step 3: Refine synthesis with adaptive strategy
+        refined_synthesis = await self._refine_synthesis(synthesis, quality_score, strategy=strategy)
         
         # Log refinement decision
         self.decision_log.log_decision(
             agent="Synthesizer",
             decision_type="REFINEMENT_ITERATION",
-            decision=f"REFINING_SYNTHESIS",
+            decision=f"REFINING_SYNTHESIS ({strategy})",
             reasoning=f"Quality score {quality_score:.2f} below threshold {quality_threshold:.2f}. "
-                     f"Refining themes, clarifying contradictions, and specifying gaps.",
+                     f"Refining using {strategy} strategy: focusing on {'themes' if strategy == 'themes' else 'contradictions' if strategy == 'contradictions' else 'gaps' if strategy == 'gaps' else 'all aspects'}.",
             nim_used="llama-3.1-nemotron-nano-8B-v1 (Reasoning NIM)",
-            metadata={"iteration": iteration, "quality_score": quality_score}
+            metadata={"iteration": iteration, "quality_score": quality_score, "strategy": strategy}
         )
         
         return refined_synthesis
@@ -1345,21 +1555,31 @@ Format: Score: 0.85 | Explanation: ...
     async def _refine_synthesis(
         self,
         synthesis: Synthesis,
-        current_quality: float
+        current_quality: float,
+        strategy: str = "comprehensive"
     ) -> Synthesis:
-        """Refine synthesis to improve quality"""
+        """Refine synthesis to improve quality with adaptive strategy"""
+        
+        # Build strategy-specific refinement prompt
+        if strategy == "themes":
+            focus_instruction = "Focus specifically on improving theme coherence, specificity, and distinctness. Make themes more actionable and well-defined."
+        elif strategy == "contradictions":
+            focus_instruction = "Focus specifically on clarifying contradictions with clear examples and explanations. Make conflicts more explicit."
+        elif strategy == "gaps":
+            focus_instruction = "Focus specifically on identifying research gaps with potential research approaches. Make gaps more specific and actionable."
+        else:
+            focus_instruction = "Improve all aspects: themes, contradictions, and gaps."
+        
         refinement_prompt = f"""
 Refine this research synthesis to improve quality (current: {current_quality:.2f}).
+
+Strategy: {strategy}
+{focus_instruction}
 
 Current Synthesis:
 Themes: {synthesis.common_themes}
 Contradictions: {synthesis.contradictions}
 Gaps: {synthesis.gaps}
-
-Improvements Needed:
-1. Make themes more specific and actionable
-2. Clarify contradictions with examples
-3. Specify research gaps with potential approaches
 
 Provide refined synthesis in JSON format:
 {{
@@ -1383,7 +1603,8 @@ Provide refined synthesis in JSON format:
                 common_themes=refined.get("themes", synthesis.common_themes),
                 contradictions=refined.get("contradictions", synthesis.contradictions),
                 gaps=refined.get("gaps", synthesis.gaps),
-                recommendations=synthesis.recommendations
+                recommendations=synthesis.recommendations,
+                enhanced_insights=synthesis.enhanced_insights  # Preserve enhanced insights
             )
             
         except Exception as e:
@@ -1598,11 +1819,15 @@ Response:
 
         return decision
 
-    async def is_synthesis_complete(self, synthesis: Synthesis) -> bool:
+    async def is_synthesis_complete(self, synthesis: Synthesis, quality_threshold: float = 0.7) -> bool:
         """
         AUTONOMOUS DECISION: Determine if synthesis is complete
+        
+        Args:
+            synthesis: Synthesis object to evaluate
+            quality_threshold: Minimum quality score (0.0-1.0) to consider complete
         """
-        logger.info(f"🎯 Coordinator: Evaluating synthesis quality")
+        logger.info(f"🎯 Coordinator: Evaluating synthesis quality (threshold: {quality_threshold})")
 
         decision_prompt = f"""
 Evaluate if this research synthesis is complete and high-quality.
@@ -1720,6 +1945,52 @@ def _generate_demo_result(query: str, max_papers: int = 10) -> Dict[str, Any]:
             "Consider multi-modal approaches",
             "Investigate scalability aspects"
         ],
+        "enhanced_insights": {
+            "field_maturity": {
+                "maturity_score": 7.8,
+                "maturity_level": "MATURE",
+                "reasoning": "Field shows mature characteristics with strong consensus."
+            },
+            "research_opportunities": [
+                {
+                    "description": "Limited longitudinal studies",
+                    "priority": "HIGH",
+                    "papers_mentioning": 8,
+                    "papers_solving": 0,
+                    "opportunity_score": 0.85,
+                    "suggested_approaches": ["Conduct longitudinal studies", "Develop tracking frameworks"],
+                    "difficulty": "MEDIUM",
+                    "impact": "HIGH"
+                }
+            ],
+            "consensus_scores": [
+                {
+                    "topic": "Key themes in research",
+                    "consensus_percentage": 82,
+                    "papers_supporting": 10,
+                    "papers_contradicting": 1,
+                    "consensus_level": "STRONG",
+                    "confidence": 0.9
+                }
+            ],
+            "hot_debates": [],
+            "expert_guidance": {
+                "thought_leaders": [{"name": "Demo Author", "papers_count": 2}],
+                "leading_institutions": [{"name": "Demo Institution", "papers_count": 3, "percentage": 100}],
+                "most_cited_papers": [],
+                "foundational_papers": []
+            },
+            "meta_analysis": {
+                "overall_consensus": 75,
+                "controversy_level": 15,
+                "field_growth": "+120%"
+            },
+            "starter_questions": [
+                "What's the most foundational paper in this field?",
+                "What tools are available for researchers?",
+                "Which methodologies are most validated?"
+            ]
+        },
         "decisions": [
             {
                 "timestamp": datetime.now().isoformat(),
@@ -1879,26 +2150,63 @@ class ResearchOpsAgent:
         
         return papers
 
-    async def _execute_analysis_phase(self, papers: List[Any]) -> tuple[List[Any], List[Any]]:
+    async def _execute_analysis_phase(self, papers: List[Any], query: str) -> tuple[List[Any], List[Any]]:
         """
         Execute parallel analysis phase with quality assessment
-        
+
         Responsibilities:
         - Parallel paper analysis
         - Quality assessment for each paper
         - Error handling for quality assessment
-        
+
+        Args:
+            papers: List of papers to analyze
+            query: Research query for context in error handling
+
         Returns:
             (analyses, quality_scores)
         """
         logger.info(f"📊 Analyzing {len(papers)} papers in parallel...")
         self.progress_tracker.set_stage(Stage.ANALYZING, "Reasoning NIM")
         
-        # Parallel analysis
+        # Parallel analysis with concurrency limit
+        from constants import MAX_CONCURRENT_ANALYSES
+        semaphore = asyncio.Semaphore(MAX_CONCURRENT_ANALYSES)
+        
+        async def analyze_with_limit(paper):
+            """Analyze paper with concurrency limit"""
+            async with semaphore:
+                try:
+                    return await self.analyst.analyze(paper)
+                except Exception as e:
+                    logger.error(f"Error analyzing paper {paper.id}: {e}")
+                    # Return a placeholder analysis to continue processing
+                    from agents import Analysis
+                    return Analysis(
+                        paper_id=paper.id,
+                        research_question=query,
+                        key_findings=[],
+                        methodology="",
+                        limitations=[],
+                        confidence=0.0,
+                        metadata={}
+                    )
+        
+        # Process all papers in parallel with concurrency limit
         analyses = await asyncio.gather(*[
-            self.analyst.analyze(paper)
+            analyze_with_limit(paper)
             for paper in papers
-        ])
+        ], return_exceptions=True)
+        
+        # Filter out exceptions and log them
+        valid_analyses = []
+        for i, analysis in enumerate(analyses):
+            if isinstance(analysis, Exception):
+                logger.error(f"Analysis failed for paper {papers[i].id}: {analysis}")
+            else:
+                valid_analyses.append(analysis)
+        
+        analyses = valid_analyses
         self.progress_tracker.set_papers_analyzed(len(analyses))
         
         # Assess quality for each paper (with error handling)
@@ -1968,24 +2276,60 @@ class ResearchOpsAgent:
         # AUTONOMOUS DECISION - Is synthesis complete?
         synthesis_complete = await self.coordinator.is_synthesis_complete(synthesis)
         
-        # REFINEMENT LOOP
-        max_iterations = int(os.getenv("SYNTHESIS_MAX_ITERATIONS", "2"))
+        # ENHANCED REFINEMENT LOOP with adaptive strategies
+        max_iterations = int(os.getenv("SYNTHESIS_MAX_ITERATIONS", "3"))  # Increased default
+        refinement_history = []  # Track refinement attempts
+        
         for iteration in range(max_iterations):
             if synthesis_complete:
                 break
             
             logger.info(f"🔄 Agent decided to refine synthesis (iteration {iteration + 1}/{max_iterations})")
             
-            # Refine synthesis
-            self.progress_tracker.set_stage(Stage.REFINING, "Reasoning NIM")
+            # Adaptive refinement strategy based on iteration
+            refinement_strategy = "comprehensive"
+            if iteration == 0:
+                refinement_strategy = "themes"  # Focus on themes first
+            elif iteration == 1:
+                refinement_strategy = "contradictions"  # Then contradictions
+            else:
+                refinement_strategy = "gaps"  # Finally gaps
+            
+            # Refine synthesis with adaptive strategy
+            self.progress_tracker.set_stage(Stage.REFINING, f"Reasoning NIM ({refinement_strategy})")
             synthesis = await self.synthesizer.refine_synthesis(
                 synthesis,
                 analyses,
-                iteration + 1
+                iteration + 1,
+                strategy=refinement_strategy
             )
             
-            # Re-evaluate quality
-            synthesis_complete = await self.coordinator.is_synthesis_complete(synthesis)
+            # Track refinement quality
+            refinement_quality = {
+                "iteration": iteration + 1,
+                "themes_count": len(synthesis.common_themes),
+                "contradictions_count": len(synthesis.contradictions),
+                "gaps_count": len(synthesis.gaps),
+                "strategy": refinement_strategy
+            }
+            refinement_history.append(refinement_quality)
+            
+            # Re-evaluate quality with adaptive thresholds
+            quality_threshold = 0.7 if iteration == 0 else (0.8 if iteration == 1 else 0.85)
+            synthesis_complete = await self.coordinator.is_synthesis_complete(
+                synthesis, 
+                quality_threshold=quality_threshold
+            )
+            
+            # Log refinement decision
+            self.decision_log.log_decision(
+                agent="Coordinator",
+                decision_type="REFINEMENT_ITERATION",
+                decision=f"Refinement iteration {iteration + 1} using {refinement_strategy} strategy",
+                reasoning=f"Quality threshold: {quality_threshold}, Current quality: {'meets threshold' if synthesis_complete else 'needs improvement'}",
+                nim_used="llama-3.1-nemotron-nano-8B-v1 (Reasoning NIM)",
+                metadata=refinement_quality
+            )
         
         if not synthesis_complete:
             logger.warning(f"Synthesis refinement completed after {max_iterations} iterations, but quality threshold not met")
@@ -2037,6 +2381,7 @@ class ResearchOpsAgent:
             "contradictions": synthesis.contradictions,
             "research_gaps": synthesis.gaps,
             "recommendations": synthesis.recommendations,
+            "enhanced_insights": synthesis.enhanced_insights,
             "decisions": self.decision_log.get_decisions(),
             "synthesis_complete": synthesis_complete,
             "progress": progress_info,
@@ -2111,7 +2456,7 @@ class ResearchOpsAgent:
             }
         
         logger.info(f"\n{'='*60}")
-        logger.info(f"🚀 ResearchOps Agent: Starting synthesis for '{query}'")
+        logger.info(f"🚀 Agentic Researcher: Starting synthesis for '{query}'")
         logger.info(f"{'='*60}\n")
 
         # Initialize progress tracking
@@ -2120,12 +2465,15 @@ class ResearchOpsAgent:
 
         # Phase 1: Search phase
         papers = await self._execute_search_phase(query, max_papers)
-        
+
         # Phase 2: Analysis phase
-        analyses, quality_scores = await self._execute_analysis_phase(papers)
+        analyses, quality_scores = await self._execute_analysis_phase(papers, query)
         
         # Phase 3: Synthesis phase
         synthesis = await self._execute_synthesis_phase(analyses)
+        
+        # Phase 3.5: Generate enhanced insights
+        synthesis = await self.synthesizer.generate_enhanced_insights(papers, analyses, synthesis)
         
         # Phase 4: Refinement phase
         synthesis, synthesis_complete = await self._execute_refinement_phase(synthesis, analyses)
@@ -2139,7 +2487,7 @@ class ResearchOpsAgent:
         )
 
         logger.info(f"\n{'='*60}")
-        logger.info(f"✅ ResearchOps Agent: Synthesis complete!")
+        logger.info(f"✅ Agentic Researcher: Synthesis complete!")
         logger.info(f"📊 {len(papers)} papers analyzed")
         logger.info(f"🎯 {len(self.decision_log.decisions)} autonomous decisions made")
         logger.info(f"{'='*60}\n")

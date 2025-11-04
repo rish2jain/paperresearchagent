@@ -28,8 +28,43 @@ fi
 
 # Check for required environment variables
 if [ -z "$NGC_API_KEY" ]; then
-    echo -e "${RED}NGC_API_KEY not set. Get it from https://ngc.nvidia.com/setup${NC}"
-    exit 1
+    echo -e "${YELLOW}NGC_API_KEY not set in environment, checking secrets.yaml...${NC}"
+    
+    if [ -f "secrets.yaml" ]; then
+        # Try to extract NGC_API_KEY from secrets.yaml
+        # First, try using yq if available (most robust)
+        if command -v yq &> /dev/null; then
+            EXTRACTED_KEY=$(yq eval '.stringData.NGC_API_KEY // .data.NGC_API_KEY | @base64d' secrets.yaml 2>/dev/null || yq eval '.stringData.NGC_API_KEY' secrets.yaml 2>/dev/null || echo "")
+        else
+            # Fallback: safer grep+sed/awk that handles single/double quotes, unquoted, and inline comments
+            # Pattern: find NGC_API_KEY line, extract value, strip quotes, remove inline comments
+            # First sed: remove everything before colon+whitespace, handle quoted/unquoted values
+            # Second sed: remove inline comments (anything after #)
+            # Third sed: trim leading/trailing whitespace
+            EXTRACTED_KEY=$(grep -E '^\s*NGC_API_KEY\s*:' secrets.yaml | \
+                sed -E 's/^[^:]*:\s*//' | \
+                sed -E "s/^['\"]?([^'\"]*)['\"]?(\s*#.*)?$/\1/" | \
+                sed 's/#.*$//' | \
+                sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | \
+                head -1)
+        fi
+        
+        # Validate extracted key (non-empty and reasonable length)
+        if [ -n "$EXTRACTED_KEY" ] && [ ${#EXTRACTED_KEY} -ge 10 ] && [ ${#EXTRACTED_KEY} -le 500 ]; then
+            export NGC_API_KEY="$EXTRACTED_KEY"
+            echo -e "${GREEN}✅ Extracted NGC_API_KEY from secrets.yaml${NC}"
+        else
+            echo -e "${RED}NGC_API_KEY not found in secrets.yaml or invalid format${NC}"
+            echo -e "${RED}Please set NGC_API_KEY environment variable or add it to secrets.yaml${NC}"
+            echo -e "${RED}Get it from: https://ngc.nvidia.com/setup${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${RED}NGC_API_KEY not set and secrets.yaml not found${NC}"
+        echo -e "${RED}Please set NGC_API_KEY environment variable or create secrets.yaml${NC}"
+        echo -e "${RED}Get it from: https://ngc.nvidia.com/setup${NC}"
+        exit 1
+    fi
 fi
 
 # Create EKS cluster (if not exists)
@@ -88,13 +123,14 @@ echo "  → Deploying Web UI..."
 kubectl apply -f web-ui-deployment.yaml
 
 # Wait for deployments to be ready
-echo -e "${YELLOW}Waiting for deployments to be ready (this may take 5-10 minutes)...${NC}"
+echo -e "${YELLOW}Waiting for deployments to be ready (this may take 10-15 minutes)...${NC}"
+echo -e "${YELLOW}Note: NIMs use Recreate strategy (brief downtime) and TensorRT compilation (10+ min first start)${NC}"
 
-echo "  → Waiting for Reasoning NIM..."
-kubectl wait --for=condition=available --timeout=600s deployment/reasoning-nim -n research-ops
+echo "  → Waiting for Reasoning NIM (up to 20 minutes for TensorRT engine build)..."
+kubectl wait --for=condition=available --timeout=1200s deployment/reasoning-nim -n research-ops
 
-echo "  → Waiting for Embedding NIM..."
-kubectl wait --for=condition=available --timeout=600s deployment/embedding-nim -n research-ops
+echo "  → Waiting for Embedding NIM (up to 20 minutes for TensorRT engine build)..."
+kubectl wait --for=condition=available --timeout=1200s deployment/embedding-nim -n research-ops
 
 echo "  → Waiting for Vector DB..."
 kubectl wait --for=condition=available --timeout=300s deployment/qdrant -n research-ops

@@ -216,12 +216,25 @@ This UX audit consists of **4 interconnected documents** totaling 200+ pages of 
 ## 🎯 Implementation Priority
 
 ### P0: Critical (Week 1) - Addresses "not insightful enough"
-1. ✅ Research Insights Hero Section (2 days)
-2. ✅ Enhanced Contradiction Display (2 days)
-3. ✅ Actionable Research Gaps (2 days)
-4. ✅ Structured Synthesis Display (1 day)
+
+**Note**: The P0 items total 7 days when including development, testing, and review. However, the core implementation work (coding only) aligns with the **UX_QUICK_WINS_CHECKLIST.md** estimate of 6.5 hours. The "Week 1" timeline includes:
+- Development time: 6.5 hours (core implementation)
+- Testing and validation: 1-2 days
+- Code review and integration: 1-2 days
+- Total: 7 days (Week 1)
+
+**P0 Items with Time Breakdown**:
+1. ✅ Research Insights Hero Section (2 days total: 2 hours dev + 1 day testing/review)
+2. ✅ Enhanced Contradiction Display (2 days total: 2 hours dev + 1 day testing/review)
+3. ✅ Actionable Research Gaps (2 days total: 2 hours dev + 1 day testing/review)
+4. ✅ Structured Synthesis Display (1 day total: 0.5 hours dev + 0.5 day testing/review)
+
+**Core Implementation Time**: 6.5 hours (matches UX_QUICK_WINS_CHECKLIST.md)
+**Total Timeline with Testing/Review**: 7 days (Week 1)
 
 **Impact**: 3x satisfaction increase, 5x discovery rate increase
+
+**Cross-Reference**: See `UX_QUICK_WINS_CHECKLIST.md` for the 6.5-hour quick-wins breakdown focusing on implementation-only time.
 
 ### P1: Important (Week 2) - Enhances insight quality
 5. ✅ Cross-Referencing System (3 days)

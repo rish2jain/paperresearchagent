@@ -1,5 +1,5 @@
 """
-ResearchOps Agent Package
+Agentic Researcher Package
 Multi-agent AI system for automated literature review
 """
 

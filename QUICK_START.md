@@ -1,5 +1,7 @@
 # ⚡ Quick Start Guide
 
+**Last Updated:** 2025-01-15
+
 **For the full detailed guide, see: [HACKATHON_SETUP_GUIDE.md](HACKATHON_SETUP_GUIDE.md)**
 
 ---
