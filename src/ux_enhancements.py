@@ -1044,7 +1044,22 @@ def render_citation_management_export(result: Dict):
     
     with col4:
         if st.button("📄 EndNote (XML)", key="export_endnote", use_container_width=True):
-            st.info("EndNote XML export coming soon!")
+            try:
+                from export_formats import generate_endnote_export
+                if papers:
+                    endnote_content = generate_endnote_export(papers)
+                    st.download_button(
+                        label="Download EndNote",
+                        data=endnote_content,
+                        file_name=f"endnote_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.enw",
+                        mime="text/plain",
+                        key="download_endnote"
+                    )
+                else:
+                    st.info("No papers available for export")
+            except Exception as e:
+                st.error(f"Unable to generate EndNote export: {e}")
+                logger.error(f"EndNote export error: {e}", exc_info=True)
 
 
 def generate_ris_export(papers: List[Dict]) -> str:

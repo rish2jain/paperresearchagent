@@ -8,6 +8,21 @@ from typing import Optional
 from dataclasses import dataclass
 import logging
 
+# Load .env file automatically if it exists
+try:
+    from dotenv import load_dotenv
+    # Load .env from project root (parent directory of src/)
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        logging.info(f"✅ Loaded environment variables from {env_path}")
+    else:
+        # Also try loading from current directory (for when running from root)
+        load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip automatic loading
+    pass
+
 logger = logging.getLogger(__name__)
 
 

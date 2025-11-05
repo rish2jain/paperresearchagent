@@ -31,6 +31,7 @@ class CitationNode:
     citation_ids: List[str] = field(default_factory=list)  # Papers this cites
     cited_by_ids: List[str] = field(default_factory=list)  # Papers that cite this
     source: str = ""
+    doi: Optional[str] = None  # DOI for Crossref lookups
 
 
 @dataclass
@@ -130,13 +131,23 @@ async def build_citation_graph_from_papers(
             except (ValueError, IndexError):
                 pass
         
+        # Extract DOI if available
+        doi = paper.get("doi") or paper.get("DOI")
+        if not doi and paper.get("url"):
+            # Try to extract DOI from URL
+            import re
+            doi_match = re.search(r'doi\.org/([^/]+)', paper.get("url", ""))
+            if doi_match:
+                doi = doi_match.group(1)
+        
         node = CitationNode(
             paper_id=paper_id,
             title=paper.get("title", "Unknown"),
             authors=paper.get("authors", []),
             year=year,
             citation_count=paper.get("citation_count", 0),
-            source=paper.get("source", "")
+            source=paper.get("source", ""),
+            doi=doi
         )
         graph.add_paper(node)
     
@@ -220,10 +231,40 @@ async def _enrich_with_crossref(graph: CitationGraph):
     
     async with aiohttp.ClientSession() as session:
         # Crossref has limited free access, so we'll be conservative
+        # Extract DOIs and fetch references
         for paper_id, node in graph.nodes.items():
             # Try to extract DOI from paper metadata
-            # This is a placeholder - actual implementation would need DOI extraction
-            pass
+            doi = None
+            if node.source == "crossref" and paper_id.startswith("crossref-"):
+                doi = paper_id.replace("crossref-", "")
+            elif hasattr(node, 'doi') and node.doi:
+                doi = node.doi
+            elif paper_id.startswith("doi:"):
+                doi = paper_id.replace("doi:", "")
+            
+            if doi:
+                try:
+                    # Fetch references from Crossref
+                    url = f"https://api.crossref.org/works/{doi}"
+                    async with session.get(
+                        url,
+                        headers={"User-Agent": "AgenticResearcher/1.0 (mailto:support@example.com)"},
+                        timeout=aiohttp.ClientTimeout(total=5)
+                    ) as response:
+                        if response.status == 200:
+                            data = await response.json()
+                            references = data.get("message", {}).get("reference", [])
+                            
+                            for ref in references[:10]:  # Limit to 10 references
+                                if ref.get("DOI"):
+                                    cited_doi = ref["DOI"]
+                                    cited_id = f"crossref-{cited_doi}"
+                                    # Add citation edge if the cited paper is in our graph
+                                    if cited_id in graph.nodes:
+                                        graph.add_citation(paper_id, cited_id)
+                except Exception as e:
+                    logger.debug(f"Failed to fetch Crossref references for {doi}: {e}")
+                    continue
 
 
 def analyze_citation_graph(graph: CitationGraph) -> Dict[str, Any]:

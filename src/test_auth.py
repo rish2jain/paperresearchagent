@@ -3,6 +3,11 @@ Authentication and Rate Limiting Tests
 Tests API key validation and rate limiting functionality
 """
 
+import sys
+import os
+# Add src directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 import pytest
 import time
 from unittest.mock import Mock, patch

@@ -21,74 +21,79 @@ spec:
         component: llm-inference
     spec:
       # Node selector for GPU instances
+      # Using large nodes (g5.4xlarge) for Reasoning NIM due to TensorRT compilation memory requirements
       nodeSelector:
-        node.kubernetes.io/instance-type: g5.2xlarge
+        instance-type: large
+      # Fallback to g5.2xlarge if large nodes not available (may hit OOM)
+      # nodeSelector:
+      #   node.kubernetes.io/instance-type: g5.2xlarge
 
       containers:
-      - name: reasoning-nim
-        image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-v1:1.8.4
-        imagePullPolicy: Always
+        - name: reasoning-nim
+          image: nvcr.io/nim/nvidia/llama-3.1-nemotron-nano-8b-v1:1.8.4
+          imagePullPolicy: Always
 
-        ports:
-        - containerPort: 8000
-          name: http
-          protocol: TCP
+          ports:
+            - containerPort: 8000
+              name: http
+              protocol: TCP
 
-        env:
-        - name: NGC_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: nvidia-ngc-secret
-              key: NGC_API_KEY
+          env:
+            - name: NGC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: nvidia-ngc-secret
+                  key: NGC_API_KEY
 
-        - name: NIM_CACHE_PATH
-          value: "/opt/nim/.cache"
+            - name: NIM_CACHE_PATH
+              value: "/opt/nim/.cache"
 
-        - name: NIM_SERVER_PORT
-          value: "8000"
+            - name: NIM_SERVER_PORT
+              value: "8000"
 
-        - name: NIM_JSONL_LOGGING
-          value: "1"
+            - name: NIM_JSONL_LOGGING
+              value: "1"
 
-        # Model quantization for performance optimization
-        - name: QUANTIZATION
-          value: "int8"  # INT8 quantization for 2x speedup, minimal accuracy loss
+            # Model quantization for performance optimization
+            - name: QUANTIZATION
+              value: "int8" # INT8 quantization for 2x speedup, minimal accuracy loss
 
-        # Resource configuration (optimized for 2-node setup)
-        resources:
-          requests:
-            memory: "18Gi"
-            cpu: "4"
-            nvidia.com/gpu: "1"
-          limits:
-            memory: "20Gi"  # Optimized for 2-node capacity
-            cpu: "5"        # Optimized to fit within node capacity (7.91 allocatable)
-            nvidia.com/gpu: "1"
+          # Resource configuration (optimized for 2-node setup)
+          # Increased memory limit to allow TensorRT engine compilation (requires extra memory during build)
+          resources:
+            requests:
+              memory: "48Gi" # Request sufficient memory for TensorRT compilation
+              cpu: "12"
+              nvidia.com/gpu: "1"
+            limits:
+              memory: "56Gi" # Increased for TensorRT compilation on g5.4xlarge (64GB allocatable)
+              cpu: "15" # g5.4xlarge has 16 vCPUs
+              nvidia.com/gpu: "1"
 
-        # Health checks - Extended delays for TensorRT engine compilation (10+ minutes)
-        livenessProbe:
-          httpGet:
-            path: /v1/health/live
-            port: 8000
-          initialDelaySeconds: 600  # 10 minutes for first engine build
-          periodSeconds: 30
-          timeoutSeconds: 10
-          failureThreshold: 5
+          # Health checks - Extended delays for TensorRT engine compilation (10+ minutes)
+          livenessProbe:
+            httpGet:
+              path: /v1/health/live
+              port: 8000
+            initialDelaySeconds: 600 # 10 minutes for first engine build
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
 
-        readinessProbe:
-          httpGet:
-            path: /v1/health/ready
-            port: 8000
-          initialDelaySeconds: 540  # 9 minutes
-          periodSeconds: 10
-          timeoutSeconds: 5
-          failureThreshold: 5
+          readinessProbe:
+            httpGet:
+              path: /v1/health/ready
+              port: 8000
+            initialDelaySeconds: 540 # 9 minutes
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
 
-        volumeMounts:
-        - name: nim-cache
-          mountPath: /opt/nim/.cache
-        - name: shm
-          mountPath: /dev/shm
+          volumeMounts:
+            - name: nim-cache
+              mountPath: /opt/nim/.cache
+            - name: shm
+              mountPath: /dev/shm
 
       securityContext:
         runAsNonRoot: true
@@ -97,17 +102,17 @@ spec:
         fsGroup: 1000
 
       volumes:
-      - name: nim-cache
-        persistentVolumeClaim:
-          claimName: reasoning-nim-cache-pvc
-      - name: shm
-        emptyDir:
-          medium: Memory
-          sizeLimit: 8Gi
+        - name: nim-cache
+          persistentVolumeClaim:
+            claimName: reasoning-nim-cache-pvc
+        - name: shm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 8Gi
 
       # Image pull secrets for NGC
       imagePullSecrets:
-      - name: ngc-secret
+        - name: ngc-secret
 
 ---
 apiVersion: v1
@@ -120,10 +125,10 @@ metadata:
 spec:
   type: ClusterIP
   ports:
-  - port: 8000
-    targetPort: 8000
-    protocol: TCP
-    name: http
+    - port: 8000
+      targetPort: 8000
+      protocol: TCP
+      name: http
   selector:
     app: reasoning-nim
 
@@ -135,7 +140,7 @@ metadata:
   namespace: research-ops
 spec:
   accessModes:
-  - ReadWriteOnce
+    - ReadWriteOnce
   resources:
     requests:
       storage: 50Gi

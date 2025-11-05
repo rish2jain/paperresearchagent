@@ -3,6 +3,21 @@ Agentic Researcher Web UI
 Streamlit interface for visualizing agent decisions and research synthesis
 """
 
+# Load .env file automatically if it exists (before other imports that use os.getenv)
+try:
+    from dotenv import load_dotenv
+    import os
+    # Load .env from project root (parent directory of src/)
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+    else:
+        # Also try loading from current directory (for when running from root)
+        load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip automatic loading
+    pass
+
 import streamlit as st
 import requests
 import json
@@ -4535,7 +4550,7 @@ st.markdown(
     🔍 <strong>Research Intelligence Platform</strong> - Not just a tool, a research partner<br>
     Synthesis • Hypothesis Generation • Trend Prediction • Collaboration Matching<br>
     Research-grade AI with full transparency • <a href="/docs" target="_blank" style='color: #1976D2; text-decoration: none; font-weight: 500;'>API Docs</a> • 
-    <a href="#" style='color: #1976D2; text-decoration: none;'>Zotero/Mendeley Integration</a> (Coming Soon)
+    <a href="#export-section" style='color: #1976D2; text-decoration: none;'>Zotero/Mendeley Export</a> (RIS/CSV formats available)
     </small>
 </div>
 """,

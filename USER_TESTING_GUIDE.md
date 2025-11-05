@@ -1,21 +1,23 @@
-# 🧪 User Testing Guide - ResearchOps Agent
+# 🧪 User Testing Guide - Agentic Researcher
 
 **Last Updated:** 2025-01-15  
-**Version:** 2.0 (UX Enhancements Edition)  
-**Purpose:** Comprehensive guide for testing all UX features and functionality  
-**Deployment:** This guide assumes the ResearchOps Agent is deployed and running in Amazon EKS
+**Version:** 3.0 (Complete Feature Edition)  
+**Purpose:** Comprehensive guide for testing all features and functionality  
+**Deployment Options:** This guide covers both EKS deployment and local development testing
 
 ---
 
 ## 📋 Table of Contents
 
 1. [Quick Start](#quick-start)
-2. [Testing the 15 UX Enhancements](#testing-the-15-ux-enhancements)
-3. [Functional Testing](#functional-testing)
-4. [Performance Testing](#performance-testing)
-5. [Accessibility Testing](#accessibility-testing)
-6. [Test Scenarios](#test-scenarios)
-7. [Reporting Issues](#reporting-issues)
+2. [Local Development Setup](#local-development-setup)
+3. [Testing the 15 UX Enhancements](#testing-the-15-ux-enhancements)
+4. [Testing New Features](#testing-new-features)
+5. [Functional Testing](#functional-testing)
+6. [Performance Testing](#performance-testing)
+7. [Accessibility Testing](#accessibility-testing)
+8. [Test Scenarios](#test-scenarios)
+9. [Reporting Issues](#reporting-issues)
 
 ---
 
@@ -23,7 +25,48 @@
 
 ### Prerequisites
 
-**Assumption:** The ResearchOps Agent is already deployed and running in your EKS cluster.
+**Option 1: EKS Deployment** (Production)
+- Agentic Researcher is deployed and running in your EKS cluster
+- All services are accessible via port-forwarding or Ingress
+
+**Option 2: Local Development** (Testing/Development)
+- Python 3.9+ installed
+- NVIDIA NIMs running locally or accessible via `build.nvidia.com`
+- `.env` file configured with API keys (optional, auto-loaded)
+
+### Configuration Setup
+
+**Automatic .env Loading:**
+
+The system automatically loads environment variables from a `.env` file in the project root. Create a `.env` file with:
+
+```bash
+# Required for EKS deployment
+NGC_API_KEY=your_ngc_api_key
+
+# Optional: Paper source API keys (auto-enables sources when present)
+IEEE_API_KEY=your_ieee_key
+SPRINGER_API_KEY=your_springer_key
+SEMANTIC_SCHOLAR_API_KEY=your_s2_key
+ACM_API_KEY=your_acm_key
+
+# Optional: AWS integration
+AWS_ACCESS_KEY_ID=your_aws_key
+AWS_SECRET_ACCESS_KEY=your_aws_secret
+AWS_DEFAULT_REGION=us-east-2
+
+# Optional: Feature flags
+ENABLE_IEEE=true
+ENABLE_SPRINGER=true
+ENABLE_ACM=false
+```
+
+**Note:** The system automatically:
+- Loads `.env` when the application starts
+- Enables IEEE/Springer sources if API keys are present
+- Uses environment variables for all configuration
+
+See `docs/ENV_SETUP.md` for detailed configuration instructions.
 
 Verify deployment status:
 
@@ -42,6 +85,8 @@ kubectl get pods -n research-ops
 
 ### Accessing Services
 
+#### EKS Deployment:
+
 ```bash
 # Terminal 1: Port-forward Web UI
 kubectl port-forward -n research-ops svc/web-ui 8501:8501
@@ -50,11 +95,22 @@ kubectl port-forward -n research-ops svc/web-ui 8501:8501
 kubectl port-forward -n research-ops svc/agent-orchestrator 8080:8080
 ```
 
+#### Local Development:
+
+```bash
+# Terminal 1: Start FastAPI server
+cd /path/to/research-ops-agent
+python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8080
+
+# Terminal 2: Start Streamlit UI
+streamlit run src/web_ui.py --server.port 8501
+```
+
 ### Access Points
 
-- **Web UI**: http://localhost:8501 (after port-forwarding)
-- **API**: http://localhost:8080 (after port-forwarding)
-- **API Docs**: http://localhost:8080/docs (after port-forwarding)
+- **Web UI**: http://localhost:8501
+- **API**: http://localhost:8080
+- **API Docs**: http://localhost:8080/docs (Swagger UI)
 
 **Note:** If you have an Ingress controller configured, you may access services via the Ingress URL instead of port-forwarding. Check your Ingress configuration:
 
@@ -71,7 +127,7 @@ curl http://localhost:8080/health
 # Expected response:
 # {
 #   "status": "healthy",
-#   "service": "research-ops-agent",
+#   "service": "Agentic Researcher API",
 #   "version": "1.0.0",
 #   "nims_available": {
 #     "reasoning_nim": true,
@@ -115,6 +171,177 @@ kubectl exec -n research-ops deployment/agent-orchestrator -- \
 ```
 
 For more detailed troubleshooting, see `docs/TROUBLESHOOTING.md` or `DEPLOYMENT.md`.
+
+---
+
+## 💻 Local Development Setup
+
+### Prerequisites for Local Testing
+
+1. **Python Environment:**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   ```
+
+2. **NVIDIA NIMs:**
+   - **Option A:** Use `build.nvidia.com` (free, rate-limited)
+     - Reasoning NIM: `https://integrate.api.nvidia.com/v1`
+     - Embedding NIM: `https://integrate.api.nvidia.com/v1`
+   - **Option B:** Deploy NIMs locally (requires GPU)
+   - **Option C:** Use EKS NIMs via port-forwarding
+
+3. **Environment Variables:**
+   - Create `.env` file in project root (see Configuration Setup above)
+   - System automatically loads `.env` on startup
+
+4. **Optional Services:**
+   - Redis (for caching): `redis://localhost:6379`
+   - Qdrant (for vector storage): `http://localhost:6333`
+
+### Running Locally
+
+```bash
+# 1. Start FastAPI backend
+python -m uvicorn src.api:app --reload --host 0.0.0.0 --port 8080
+
+# 2. In another terminal, start Streamlit UI
+streamlit run src/web_ui.py --server.port 8501
+
+# 3. Access Web UI at http://localhost:8501
+```
+
+### Testing NIMs Locally
+
+```bash
+# Test Reasoning NIM
+curl -X POST http://localhost:8000/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "Hello", "max_tokens": 10}'
+
+# Test Embedding NIM
+curl -X POST http://localhost:8001/v1/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{"input": "test text"}'
+```
+
+### Local vs EKS Testing
+
+| Feature | Local Development | EKS Deployment |
+|---------|------------------|----------------|
+| Setup Time | 5-10 minutes | 30-60 minutes |
+| GPU Access | Optional (can use build.nvidia.com) | Required (g5.2xlarge) |
+| Cost | Free (or minimal) | ~$0.50/hour |
+| Performance | Slower (rate limits) | Fast (dedicated GPUs) |
+| Best For | Development, testing | Production, demos |
+
+---
+
+## 🆕 Testing New Features
+
+### Full-Text PDF Analysis
+
+**What to Test:**
+- PDF download and parsing
+- Full-text extraction
+- Methodology, results, and experimental setup extraction
+- Figure and table detection
+- Citation extraction from PDFs
+
+**Test Steps:**
+1. Submit a query with papers that have PDF links
+2. Check if PDF analysis is triggered
+3. Verify extracted information includes:
+   - Full methodology
+   - Experimental results
+   - Tables and figures metadata
+   - In-text citations
+
+**Expected Results:**
+- PDFs are downloaded when available
+- Full text is extracted (not just abstracts)
+- Structured information is extracted
+- Analysis is more comprehensive than abstract-only
+
+### AWS Integration
+
+**What to Test:**
+- SageMaker endpoint invocation
+- Lambda function execution
+- Bedrock model usage (Claude, Llama, etc.)
+- S3 storage for results
+
+**Test Steps:**
+1. Configure AWS credentials in `.env`:
+   ```bash
+   AWS_ACCESS_KEY_ID=your_key
+   AWS_SECRET_ACCESS_KEY=your_secret
+   AWS_DEFAULT_REGION=us-east-2
+   ```
+2. Test SageMaker endpoint (if configured)
+3. Test Bedrock invocation:
+   ```bash
+   curl -X POST http://localhost:8080/aws/bedrock \
+     -H "Content-Type: application/json" \
+     -d '{"model": "anthropic.claude-3-5-sonnet-20241022", "prompt": "test"}'
+   ```
+4. Test S3 storage:
+   ```bash
+   curl -X POST http://localhost:8080/aws/store-s3 \
+     -H "Content-Type: application/json" \
+     -d '{"key": "test.json", "data": {"test": "data"}}'
+   ```
+
+**Expected Results:**
+- AWS services are accessible
+- Invocations succeed with proper credentials
+- Results are stored/retrieved correctly
+- Graceful degradation if AWS unavailable
+
+### Citation Graph Analysis
+
+**What to Test:**
+- Citation graph construction
+- Seminal paper identification
+- Influential paper detection
+- Evolution timeline generation
+- Crossref enrichment
+
+**Test Steps:**
+1. Submit a query with multiple papers
+2. Navigate to "Citation Graph" section
+3. Verify graph shows:
+   - Citation relationships
+   - Highly cited papers
+   - Influential papers
+   - Temporal evolution
+
+**Expected Results:**
+- Graph is constructed from paper citations
+- Seminal papers are identified
+- Citation network is visualized
+- Crossref enrichment works (if DOIs available)
+
+### Zotero/Mendeley Export
+
+**What to Test:**
+- Zotero RIS export
+- Mendeley CSV export
+- Import into citation managers
+
+**Test Steps:**
+1. Complete a research query
+2. Find "Citation Management" export section
+3. Click "Export to Zotero" (downloads RIS file)
+4. Click "Export to Mendeley" (downloads CSV file)
+5. Import into Zotero/Mendeley to verify
+
+**Expected Results:**
+- RIS file downloads correctly
+- CSV file downloads correctly
+- Files import successfully into citation managers
+- All paper metadata is preserved
 
 ---
 
@@ -568,18 +795,28 @@ For more detailed troubleshooting, see `docs/TROUBLESHOOTING.md` or `DEPLOYMENT.
 **Test:**
 
 1. Complete query
-2. Export to:
-   - Markdown ✅
-   - JSON ✅
-   - BibTeX ✅
-   - RIS ✅
-   - CSV ✅
+2. Export to all available formats:
+   - **Markdown** ✅
+   - **JSON** ✅
+   - **BibTeX** ✅
+   - **RIS (Zotero)** ✅
+   - **CSV (Mendeley)** ✅
+   - **LaTeX** ✅
+   - **Word (.docx)** ✅
+   - **PDF** ✅
+   - **Excel (.xlsx)** ✅
+   - **EndNote** ✅
+   - **HTML** ✅
+   - **XML** ✅
+   - **JSON-LD** ✅
 
 **Expected:**
 
-- ✅ All formats download
-- ✅ Content is valid
+- ✅ All formats download correctly
+- ✅ Content is valid and properly formatted
 - ✅ File names are descriptive
+- ✅ Formats are standard-compliant
+- ✅ Import into tools (Zotero, Mendeley, etc.) works
 
 ---
 
@@ -864,12 +1101,23 @@ time curl -X POST http://localhost:8080/research \
 
 ## 📚 Additional Resources
 
+### Documentation
+
 - **Judge Testing Guide**: `hackathon_submission/JUDGE_TESTING_GUIDE.md`
 - **Technical Review**: `hackathon_submission/TECHNICAL_REVIEW.md`
 - **UX Showcase**: `hackathon_submission/UX_SHOWCASE.md`
-- **API Documentation**: http://localhost:8080/docs (after port-forwarding)
+- **API Documentation**: http://localhost:8080/docs (Swagger UI)
 - **Deployment Guide**: `DEPLOYMENT.md` - EKS deployment instructions
+- **Environment Setup**: `docs/ENV_SETUP.md` - `.env` file configuration
 - **Troubleshooting**: `docs/TROUBLESHOOTING.md` - Common issues and solutions
+- **Feature Status**: `FEATURE_STATUS_REPORT.md` - Complete feature status (98% complete)
+
+### Configuration Guides
+
+- **API Keys Setup**: `docs/API_KEYS_SETUP.md` - How to get API keys
+- **NGC Setup**: `docs/GET_NGC_KEY.md` - NVIDIA NGC API key
+- **AWS Setup**: `docs/AWS_SETUP_GUIDE.md` - AWS credentials configuration
+- **Paper Sources**: `docs/PAPER_SOURCES.md` - 7 academic database integration
 
 ---
 
@@ -881,6 +1129,15 @@ time curl -X POST http://localhost:8080/research \
 2. **Monitor Pod Health**: Periodically check `kubectl get pods -n research-ops` to ensure all services remain healthy
 3. **Check Logs if Issues Occur**: Use `kubectl logs -n research-ops <pod-name>` to debug problems
 4. **Verify NIM Availability**: Ensure both Reasoning and Embedding NIMs show as available in health checks
+5. **Check Resource Usage**: Monitor GPU/node resources: `kubectl top nodes -n research-ops`
+
+### Local Development Tips
+
+1. **Automatic .env Loading**: System automatically loads `.env` file - no manual export needed
+2. **API Keys**: Place API keys in `.env` file - sources auto-enable when keys are detected
+3. **Mock Services**: Use `mock_services/` for testing without GPU access
+4. **Hot Reload**: FastAPI and Streamlit support hot reload - changes reflect immediately
+5. **Debug Mode**: Set `LOG_LEVEL=DEBUG` in `.env` for detailed logs
 
 ### General Testing Tips
 
@@ -904,4 +1161,34 @@ For questions or issues, refer to:
 
 - `TESTING_GUIDE.md` - General testing guide
 - `docs/TROUBLESHOOTING.md` - Common issues and solutions
+- `docs/ENV_SETUP.md` - Environment variable configuration
+- `FEATURE_STATUS_REPORT.md` - Current feature status (98% complete)
 - `hackathon_submission/JUDGE_TESTING_GUIDE.md` - Judge-specific testing
+
+## 🎯 Current System Status
+
+**Overall Completion: 98%** ✅
+
+### Fully Working Features ✅
+
+- ✅ Multi-agent system (4 agents with autonomous decision-making)
+- ✅ Both NVIDIA NIMs integrated (Reasoning + Embedding)
+- ✅ 7 paper sources (arXiv, PubMed, Semantic Scholar, Crossref, IEEE, ACM, Springer)
+- ✅ Full-text PDF analysis
+- ✅ AWS integration (SageMaker, Lambda, Bedrock, S3)
+- ✅ Citation graph analysis (including Crossref enrichment)
+- ✅ All export formats (13 formats including Zotero/Mendeley)
+- ✅ Automatic .env file loading
+- ✅ Real-time agent transparency
+- ✅ Enhanced UX features (15 enhancements)
+
+### Recent Updates (2025-01-15)
+
+- ✅ Automatic `.env` file loading (no manual export needed)
+- ✅ PDF libraries installed (PyPDF2, pdfplumber)
+- ✅ All export formats working (no "coming soon" messages)
+- ✅ Crossref citation enrichment fully implemented
+- ✅ Test suite fixed (297 tests collecting successfully)
+- ✅ Documentation updated
+
+**The system is production-ready for hackathon submission!** 🎉

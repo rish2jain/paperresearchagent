@@ -211,12 +211,72 @@ def _analyze_temporal_bias(years: List[int]) -> Dict[str, Any]:
 
 
 def _analyze_geographic_bias(papers: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """Analyze geographic bias (simplified - would need affiliation data)"""
-    # This is a placeholder - real implementation would parse author affiliations
+    """
+    Analyze geographic bias
+    
+    Note: Full implementation requires author affiliation data which is not
+    consistently available in paper metadata. This function provides basic
+    analysis based on available data.
+    """
+    # Extract countries from author names/affiliations if available
+    countries_found = []
+    for paper in papers:
+        authors = paper.get("authors", [])
+        # Try to extract country from author strings (e.g., "John Doe, University of California, USA")
+        for author in authors:
+            if isinstance(author, str):
+                # Look for common country patterns
+                import re
+                country_patterns = [
+                    r'\b(USA|United States|US)\b',
+                    r'\b(UK|United Kingdom|Great Britain)\b',
+                    r'\b(China|PRC)\b',
+                    r'\b(India)\b',
+                    r'\b(Germany)\b',
+                    r'\b(France)\b',
+                    r'\b(Japan)\b',
+                    r'\b(Canada)\b',
+                    r'\b(Australia)\b',
+                    r'\b(Brazil)\b'
+                ]
+                for pattern in country_patterns:
+                    if re.search(pattern, author, re.IGNORECASE):
+                        countries_found.append(re.search(pattern, author, re.IGNORECASE).group(1))
+                        break
+    
+    if not countries_found:
+        return {
+            "is_skewed": False,
+            "message": "Geographic analysis limited - author affiliation data not available in paper metadata",
+            "note": "To enable full geographic bias detection, papers need to include author affiliation data with country information",
+            "countries_detected": 0,
+            "limitation": "Paper sources typically provide author names but not affiliations"
+        }
+    
+    # Count countries
+    from collections import Counter
+    country_counts = Counter(countries_found)
+    top_countries = country_counts.most_common(3)
+    
+    # Check for bias (if >70% from one country)
+    total_detected = len(countries_found)
+    if total_detected > 0:
+        top_country_pct = (top_countries[0][1] / total_detected) * 100 if top_countries else 0
+        is_skewed = top_country_pct > 70
+        
+        return {
+            "is_skewed": is_skewed,
+            "message": f"Geographic distribution: {top_countries[0][0]} ({top_country_pct:.1f}%)" if top_countries else "Limited data",
+            "top_countries": [{"country": c[0], "count": c[1], "percentage": (c[1]/total_detected)*100} for c in top_countries],
+            "countries_detected": len(set(countries_found)),
+            "limitation": "Analysis based on limited affiliation data in paper metadata"
+        }
+    
     return {
         "is_skewed": False,
-        "message": "Geographic analysis requires author affiliation data",
-        "note": "Enhanced geographic bias detection requires parsing author affiliations",
+        "message": "Insufficient geographic data for analysis",
+        "countries_detected": 0,
+        "limitation": "Author affiliation data with country information not available"
     }
 
 

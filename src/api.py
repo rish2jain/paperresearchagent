@@ -3,6 +3,21 @@ FastAPI REST API for Agentic Researcher
 Provides HTTP endpoints for the multi-agent research synthesis system
 """
 
+# Load .env file automatically if it exists (before other imports that use os.getenv)
+try:
+    from dotenv import load_dotenv
+    import os
+    # Load .env from project root (parent directory of src/)
+    env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+    else:
+        # Also try loading from current directory (for when running from root)
+        load_dotenv()
+except ImportError:
+    # python-dotenv not installed, skip automatic loading
+    pass
+
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
 from starlette.requests import Request as StarletteRequest
 from fastapi.middleware.cors import CORSMiddleware
