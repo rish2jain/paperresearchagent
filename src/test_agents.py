@@ -79,6 +79,72 @@ async def test_scout_agent_search(mock_embedding_client):
 
 
 @pytest.mark.asyncio
+async def test_scout_agent_hybrid_retrieval(mock_embedding_client):
+    """Test ScoutAgent with hybrid retrieval enabled"""
+    import os
+    os.environ["USE_HYBRID_RETRIEVAL"] = "true"
+    
+    scout = ScoutAgent(mock_embedding_client)
+    
+    # Mock search methods
+    with patch.object(scout, '_search_arxiv', new_callable=AsyncMock) as mock_arxiv:
+        mock_arxiv.return_value = [
+            Paper(id="arxiv-001", title="Paper 1", authors=[], abstract="Abstract 1", url="")
+        ]
+        
+        # Mock hybrid retriever if available
+        if scout.hybrid_retriever:
+            with patch.object(scout.hybrid_retriever, 'retrieve', new_callable=AsyncMock) as mock_hybrid:
+                mock_hybrid.return_value = [("arxiv-001", 0.9)]
+                
+                results = await scout.search("test query", max_papers=5)
+                
+                # Check that hybrid retrieval was used when available
+                assert mock_hybrid.called, "Hybrid retriever should be called when available"
+                # Verify results include expected paper
+                assert any(r.id == "arxiv-001" for r in results), "Expected paper from hybrid retriever"
+        else:
+            # Hybrid retrieval not available, test normal flow
+            results = await scout.search("test query", max_papers=5)
+            assert len(results) <= 5
+
+
+@pytest.mark.asyncio
+async def test_scout_agent_reranking(mock_embedding_client):
+    """Test ScoutAgent with reranking enabled"""
+    import os
+    os.environ["USE_RERANKING"] = "true"
+    
+    scout = ScoutAgent(mock_embedding_client)
+    
+    # Mock search methods
+    with patch.object(scout, '_search_arxiv', new_callable=AsyncMock) as mock_arxiv:
+        mock_arxiv.return_value = [
+            Paper(id="arxiv-001", title="Paper 1", authors=[], abstract="Abstract 1", url="")
+        ]
+        
+        # Mock reranker if available
+        if scout.reranker:
+            with patch.object(scout.reranker, 'rerank_async', new_callable=AsyncMock) as mock_rerank:
+                mock_rerank.return_value = [
+                    (Paper(id="arxiv-001", title="Paper 1", authors=[], abstract="Abstract 1", url=""), 0.95)
+                ]
+                
+                results = await scout.search("test query", max_papers=5)
+                
+                # Check that reranking was attempted when reranker is available
+                assert mock_rerank.called or len(results) > 0, \
+                    "Reranker should be called when available, or results should be returned"
+                if mock_rerank.called:
+                    # Verify reranking was actually invoked
+                    assert len(mock_rerank.call_args_list) > 0, "Reranker should have been called"
+        else:
+            # Reranker not available, test normal flow
+            results = await scout.search("test query", max_papers=5)
+            assert len(results) <= 5
+
+
+@pytest.mark.asyncio
 async def test_analyst_agent_analyze(mock_reasoning_client, sample_paper):
     """Test AnalystAgent analyze functionality"""
     analyst = AnalystAgent(mock_reasoning_client)

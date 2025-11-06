@@ -1,16 +1,16 @@
 # Core async HTTP client
-aiohttp==3.9.1
+aiohttp>=3.10.0  # Updated for Denario compatibility (was 3.9.1)
 aiodns==3.1.1
 
 # Data validation
-pydantic==2.5.0
+pydantic>=2.7.4  # Updated for Denario compatibility (was 2.5.0)
 
 # Retry logic
 tenacity==8.2.3
 
 # Scientific computing
 numpy==1.26.2
-scikit-learn==1.3.2
+scikit-learn>=1.4.0  # Updated for Denario compatibility (was 1.3.2)
 
 # FastAPI for REST API
 fastapi==0.104.1
@@ -18,11 +18,11 @@ uvicorn[standard]==0.24.0
 python-multipart==0.0.6
 
 # Streamlit for Web UI
-streamlit==1.29.0
+streamlit>=1.29.0,<1.40.0  # Updated to fix session-integrity.js errors
 
 # Data visualization
-plotly==5.18.0
-pandas==2.1.4
+plotly>=5.21.0  # Updated for Denario compatibility (was 5.18.0)
+pandas>=2.2.0  # Updated for Denario compatibility (was 2.1.4)
 networkx==3.2.1
 
 # Real API integrations
@@ -62,3 +62,22 @@ botocore==1.34.0
 
 # Environment variable management
 python-dotenv==1.0.0
+
+# Local model inference (for Mac Studio)
+# Install with: pip install llama-cpp-python[metal]
+# llama-cpp-python[metal]==0.2.79  # Uncomment when installing locally
+sentence-transformers>=2.3.0  # Updated for compatibility with newer huggingface_hub
+torch>=2.0.0  # With MPS (Metal Performance Shaders) support
+
+# Denario integration (optional - requires Python >=3.12)
+# See requirements-denario.txt for Denario dependencies
+# Install with: pip install -r requirements-denario.txt (only if Python >=3.12)
+
+# Optional: MLX alternative (Apple's native framework)
+# mlx-lm>=0.1.0  # Uncomment if using MLX instead of llama.cpp
+
+# Enhancement dependencies
+rank-bm25==0.2.2  # BM25 sparse retrieval
+torch-geometric==2.4.0  # Graph neural networks
+statsmodels==0.14.0  # Statistical analysis for meta-analysis
+scipy>=1.12.0  # Updated for Denario compatibility (was 1.11.4)

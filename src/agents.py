@@ -26,6 +26,25 @@ from config import PaperSourceConfig
 from progress_tracker import ProgressTracker, Stage
 from query_expansion import expand_search_queries
 
+# Optional imports for enhancements
+try:
+    from hybrid_retrieval import HybridRetriever
+    HYBRID_RETRIEVAL_AVAILABLE = True
+except ImportError:
+    HYBRID_RETRIEVAL_AVAILABLE = False
+
+try:
+    from reranker import Reranker
+    RERANKER_AVAILABLE = True
+except ImportError:
+    RERANKER_AVAILABLE = False
+
+try:
+    from citation_graph import build_citation_graph_from_papers, CitationGraph
+    CITATION_GRAPH_AVAILABLE = True
+except ImportError:
+    CITATION_GRAPH_AVAILABLE = False
+
 # Optional import for boolean search
 try:
     from boolean_search import parse_boolean_query, expand_boolean_query
@@ -207,6 +226,22 @@ class ScoutAgent:
         self.decision_log = DecisionLog()
         # Load paper source configuration
         self.source_config = PaperSourceConfig.from_env()
+        
+        # Initialize hybrid retriever
+        self.hybrid_retriever = None
+        if HYBRID_RETRIEVAL_AVAILABLE:
+            self.hybrid_retriever = HybridRetriever(embedding_client=embedding_client)
+        
+        # Initialize reranker
+        self.reranker = None
+        if RERANKER_AVAILABLE:
+            try:
+                self.reranker = Reranker()
+            except Exception as e:
+                logger.warning(f"Failed to initialize reranker: {e}")
+        
+        # Citation graph for hybrid retrieval
+        self.citation_graph = None
 
     async def search(
         self,
@@ -303,15 +338,67 @@ class ScoutAgent:
             input_type="passage"
         )
 
-        # Step 4: Calculate relevance scores
-        papers_with_scores = []
+        # Store embeddings in papers
         for paper, embedding in zip(candidate_papers, paper_embeddings):
-            similarity = self.embedding_client.cosine_similarity(
-                query_embedding,
-                embedding
-            )
             paper.embedding = embedding
-            papers_with_scores.append((paper, similarity))
+
+        # Step 4: Hybrid Retrieval (if available)
+        # Use hybrid retrieval combining dense, sparse, and citation methods
+        if self.hybrid_retriever and os.getenv("USE_HYBRID_RETRIEVAL", "true").lower() == "true":
+            # Build citation graph if available
+            if CITATION_GRAPH_AVAILABLE and not self.citation_graph:
+                try:
+                    papers_dict = [
+                        {
+                            "id": p.id,
+                            "title": p.title,
+                            "authors": p.authors,
+                            "abstract": p.abstract,
+                            "url": p.url,
+                            "source": p.id.split('-')[0] if '-' in p.id else "unknown"
+                        }
+                        for p in candidate_papers
+                    ]
+                    self.citation_graph = await build_citation_graph_from_papers(
+                        papers_dict,
+                        semantic_scholar_api_key=self.source_config.semantic_scholar_api_key
+                    )
+                    self.hybrid_retriever.citation_graph = self.citation_graph
+                except Exception as e:
+                    logger.warning(f"Failed to build citation graph: {e}")
+            
+            # Build BM25 index
+            self.hybrid_retriever.build_bm25_index(candidate_papers)
+            
+            # Perform hybrid retrieval
+            hybrid_results = await self.hybrid_retriever.retrieve(
+                query,
+                candidate_papers,
+                top_k=min(100, len(candidate_papers)),
+                use_dense=True,
+                use_sparse=True,
+                use_citation=(self.citation_graph is not None)
+            )
+            
+            # Create paper-score mapping
+            paper_score_map = {paper_id: score for paper_id, score in hybrid_results}
+            
+            # Calculate relevance scores using hybrid scores
+            papers_with_scores = []
+            for paper in candidate_papers:
+                score = paper_score_map.get(paper.id, 0.0)
+                papers_with_scores.append((paper, score))
+            
+            logger.info(f"Hybrid retrieval: {len(hybrid_results)} papers scored")
+        else:
+            # Fallback to original dense retrieval
+            papers_with_scores = []
+            for paper, embedding in zip(candidate_papers, paper_embeddings):
+                similarity = self.embedding_client.cosine_similarity(
+                    query_embedding,
+                    embedding
+                )
+                papers_with_scores.append((paper, similarity))
 
         # Step 5: AUTONOMOUS DECISION - Filter by relevance threshold
         relevance_threshold = float(os.getenv("RELEVANCE_THRESHOLD", "0.7"))
@@ -321,19 +408,24 @@ class ScoutAgent:
         ]
 
         # 🎯 LOG THIS DECISION - CRITICAL FOR JUDGES!
+        retrieval_method = "Hybrid Retrieval (Dense + Sparse + Citation)" if (
+            self.hybrid_retriever and os.getenv("USE_HYBRID_RETRIEVAL", "true").lower() == "true"
+        ) else "Dense Retrieval (Embedding NIM)"
+        
         self.decision_log.log_decision(
             agent="Scout",
             decision_type="RELEVANCE_FILTERING",
             decision=f"ACCEPTED {len(relevant_papers)}/{len(candidate_papers)} papers",
-            reasoning=f"Applied relevance threshold of {relevance_threshold}. "
+            reasoning=f"Applied relevance threshold of {relevance_threshold} using {retrieval_method}. "
                      f"Filtered out {len(candidate_papers) - len(relevant_papers)} "
                      f"low-relevance papers to ensure quality.",
-            nim_used="nv-embedqa-e5-v5 (Embedding NIM)",
+            nim_used="nv-embedqa-e5-v5 (Embedding NIM)" + (" + BM25 + Citation Graph" if self.hybrid_retriever else ""),
             metadata={
                 "threshold": relevance_threshold,
                 "total_candidates": len(candidate_papers),
                 "accepted": len(relevant_papers),
-                "rejected": len(candidate_papers) - len(relevant_papers)
+                "rejected": len(candidate_papers) - len(relevant_papers),
+                "retrieval_method": retrieval_method
             }
         )
 
@@ -342,7 +434,44 @@ class ScoutAgent:
             key=lambda p: papers_with_scores[candidate_papers.index(p)][1],
             reverse=True
         )
-        selected_papers = relevant_papers[:max_papers]
+        
+        # Step 6.5: Rerank with cross-encoder (if available)
+        if self.reranker and os.getenv("USE_RERANKING", "true").lower() == "true":
+            # Rerank top 50-100 papers for better accuracy
+            rerank_top_k = min(100, len(relevant_papers))
+            papers_to_rerank = relevant_papers[:rerank_top_k]
+            
+            reranked = await self.reranker.rerank_async(
+                query,
+                papers_to_rerank,
+                top_k=rerank_top_k
+            )
+            
+            # Replace top papers with reranked results
+            reranked_paper_ids = {paper.id for paper, _ in reranked}
+            remaining_papers = [p for p in relevant_papers[rerank_top_k:] if p.id not in reranked_paper_ids]
+            
+            # Combine reranked papers with remaining papers
+            selected_papers = [paper for paper, _ in reranked] + remaining_papers
+            selected_papers = selected_papers[:max_papers]
+            
+            logger.info(f"Reranked {len(reranked)} papers using cross-encoder")
+            
+            # Log reranking decision
+            self.decision_log.log_decision(
+                agent="Scout",
+                decision_type="RERANKING",
+                decision=f"RERANKED {len(reranked)} papers with cross-encoder",
+                reasoning=f"Applied cross-encoder reranking to top {rerank_top_k} papers "
+                         f"for improved relevance scoring. Selected top {len(selected_papers)} papers.",
+                nim_used="Cross-Encoder (sentence-transformers)",
+                metadata={
+                    "reranked_count": len(reranked),
+                    "final_selected": len(selected_papers)
+                }
+            )
+        else:
+            selected_papers = relevant_papers[:max_papers]
 
         # 🎯 LOG PAPER SELECTION DECISION
         if len(relevant_papers) > max_papers:

@@ -1,8 +1,7 @@
 # 📚 ResearchOps Agent - Documentation Index
 
-**Last Updated:** 2025-01-15  
-**Status:** Documentation consolidated and archived  
-**Archive Date:** 2025-01-15  
+**Last Updated:** 2025-01-16  
+**Status:** Documentation consolidated and organized  
 **Quick Navigation Guide**
 
 ---
@@ -21,16 +20,22 @@
 
 ### For Developers
 1. **[README.md](README.md)** - Project overview
-2. **[docs/Architecture_Diagrams.md](docs/Architecture_Diagrams.md)** - System architecture
-3. **[docs/PAPER_SOURCES.md](docs/PAPER_SOURCES.md)** - Data source integration
-4. **[docs/API_KEYS_SETUP.md](docs/API_KEYS_SETUP.md)** - Configuration
+2. **[CLAUDE.md](CLAUDE.md)** - Development guide for Claude Code
+3. **[docs/Architecture_Diagrams.md](docs/Architecture_Diagrams.md)** - System architecture
+4. **[docs/PAPER_SOURCES.md](docs/PAPER_SOURCES.md)** - Data source integration
+5. **[docs/API_KEYS_SETUP.md](docs/API_KEYS_SETUP.md)** - Configuration
 
 ### For DevOps/Operations
 1. **[DEPLOYMENT.md](DEPLOYMENT.md)** - Deployment guide
-2. **[k8s/DEPLOYMENT_STATUS.md](k8s/DEPLOYMENT_STATUS.md)** - Current deployment status
+2. **[EKS_MANAGEMENT_GUIDE.md](EKS_MANAGEMENT_GUIDE.md)** - EKS cluster management
 3. **[docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)** - Production deployment
 4. **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Common issues
 5. **[docs/AWS_SETUP_GUIDE.md](docs/AWS_SETUP_GUIDE.md)** - AWS configuration
+
+### For Local Development
+1. **[LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md)** - Local Mac Studio setup
+2. **[LOCAL_TESTING_GUIDE.md](LOCAL_TESTING_GUIDE.md)** - Local testing guide
+3. **[TESTING_GUIDE.md](TESTING_GUIDE.md)** - Testing with mock vs live services
 
 ---
 
@@ -44,9 +49,15 @@
 | **[STATUS.md](STATUS.md)** | Current project status, features, capabilities | Everyone |
 | **[QUICK_START.md](QUICK_START.md)** | Fast 3-day setup timeline | New users |
 | **[HACKATHON_SETUP_GUIDE.md](HACKATHON_SETUP_GUIDE.md)** | Complete hackathon setup and submission | Hackathon participants |
-| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Kubernetes deployment guide (includes deployment success summary) | DevOps |
+| **[DEPLOYMENT.md](DEPLOYMENT.md)** | Kubernetes deployment guide | DevOps |
 | **[TESTING_GUIDE.md](TESTING_GUIDE.md)** | Testing with mock vs live services | Developers, Users |
-| **[DOCKER_TESTING.md](DOCKER_TESTING.md)** | Docker-based testing | Developers |
+| **[COMPREHENSIVE_USER_TESTING.md](COMPREHENSIVE_USER_TESTING.md)** | Comprehensive user testing guide | Testers, QA |
+| **[CLAUDE.md](CLAUDE.md)** | Development guide for Claude Code | Developers |
+| **[LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md)** | Local Mac Studio setup | Local developers |
+| **[LOCAL_TESTING_GUIDE.md](LOCAL_TESTING_GUIDE.md)** | Local testing guide | Local developers |
+| **[EKS_MANAGEMENT_GUIDE.md](EKS_MANAGEMENT_GUIDE.md)** | EKS cluster management | DevOps |
+| **[DEPLOY_README.md](DEPLOY_README.md)** | Deployment readme | DevOps |
+| **[UX_IMPROVEMENTS_SUMMARY.md](UX_IMPROVEMENTS_SUMMARY.md)** | UX improvements summary | Developers |
 
 ---
 
@@ -65,6 +76,9 @@
 | **[docs/MONITORING_AND_ALERTING.md](docs/MONITORING_AND_ALERTING.md)** | Metrics and monitoring | DevOps |
 | **[docs/DISASTER_RECOVERY.md](docs/DISASTER_RECOVERY.md)** | Backup and recovery | DevOps |
 | **[docs/EKS_vs_SageMaker_Comparison.md](docs/EKS_vs_SageMaker_Comparison.md)** | Platform comparison | Architects |
+| **[docs/ENV_SETUP.md](docs/ENV_SETUP.md)** | Environment variable setup | Developers |
+| **[docs/SSE_STREAMING_GUIDE.md](docs/SSE_STREAMING_GUIDE.md)** | Server-Sent Events streaming | Developers |
+| **[docs/Phase2.2_Progressive_Disclosure_Summary.md](docs/Phase2.2_Progressive_Disclosure_Summary.md)** | UX feature summary | Developers |
 
 ---
 
@@ -74,25 +88,19 @@
 |------|---------|----------|
 | **[k8s/README.md](k8s/README.md)** | Kubernetes deployment overview | DevOps |
 | **[k8s/DEPLOYMENT_STATUS.md](k8s/DEPLOYMENT_STATUS.md)** | Current deployment status | DevOps |
-| **[k8s/AWS_QUOTA_GUIDE.md](k8s/AWS_QUOTA_GUIDE.md)** | AWS quota management | DevOps |
-| **[k8s/AUTO_DEPLOY_README.md](k8s/AUTO_DEPLOY_README.md)** | Automated deployment guide | DevOps |
 
 ---
 
-### Archive (`archive/`)
+### Hackathon Submission (`hackathon_submission/`)
 
-Historical documentation preserved for reference:
-
-| Directory | Contents |
-|-----------|----------|
-| `archive/status_reports/` | Phase completion docs, implementation summaries, test reports (including FINAL_TESTING_REPORT.md, TESTING_RESULTS_SUMMARY.md, USER_TESTING_PLAN.md, BROWSER_UI_TEST_REPORT.md, CODE_REVIEW_ENHANCEMENTS.md, ENHANCEMENTS_COMPLETE.md, IMPLEMENTATION_SUMMARY.md) |
-| `archive/root_docs/` | Obsolete architecture reviews, technical reviews, action items |
-| `archive/security_docs/` | Security audit reports, secrets removal guides |
-| `archive/operations/` | Historical deployment troubleshooting, K8S fixes, Docker fixes, operations docs |
-| `archive/claudedocs/` | UX design documentation and implementation guides |
-| `archive/temp_scripts/` | Temporary scripts, test files, backup files, debugging scripts |
-
-**See:** [archive/README.md](archive/README.md) and [archive/ARCHIVE_INDEX.md](archive/ARCHIVE_INDEX.md) for details
+| File | Purpose | Audience |
+|------|---------|----------|
+| **[hackathon_submission/README.md](hackathon_submission/README.md)** | Submission overview | Judges |
+| **[hackathon_submission/PROJECT_OVERVIEW.md](hackathon_submission/PROJECT_OVERVIEW.md)** | Project overview | Judges |
+| **[hackathon_submission/ARCHITECTURE.md](hackathon_submission/ARCHITECTURE.md)** | Architecture details | Judges |
+| **[hackathon_submission/SETUP_GUIDE.md](hackathon_submission/SETUP_GUIDE.md)** | Setup instructions | Judges |
+| **[hackathon_submission/JUDGE_TESTING_GUIDE.md](hackathon_submission/JUDGE_TESTING_GUIDE.md)** | Testing guide for judges | Judges |
+| **[hackathon_submission/SUBMISSION_CHECKLIST.md](hackathon_submission/SUBMISSION_CHECKLIST.md)** | Submission checklist | Judges |
 
 ---
 
@@ -101,18 +109,20 @@ Historical documentation preserved for reference:
 ### Setup & Installation
 - **First Time Setup**: [QUICK_START.md](QUICK_START.md)
 - **Hackathon Setup**: [HACKATHON_SETUP_GUIDE.md](HACKATHON_SETUP_GUIDE.md)
-- **Docker Testing**: [DOCKER_TESTING.md](DOCKER_TESTING.md)
+- **Local Development**: [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md)
+- **Local Testing**: [LOCAL_TESTING_GUIDE.md](LOCAL_TESTING_GUIDE.md)
 
 ### Configuration
 - **API Keys**: [docs/API_KEYS_SETUP.md](docs/API_KEYS_SETUP.md)
 - **AWS Setup**: [docs/AWS_SETUP_GUIDE.md](docs/AWS_SETUP_GUIDE.md)
 - **Paper Sources**: [docs/PAPER_SOURCES.md](docs/PAPER_SOURCES.md)
+- **Environment Variables**: [docs/ENV_SETUP.md](docs/ENV_SETUP.md)
 
 ### Deployment
 - **Local Development**: [README.md](README.md) (Quick Start section)
 - **EKS Deployment**: [DEPLOYMENT.md](DEPLOYMENT.md)
 - **Production**: [docs/PRODUCTION_DEPLOYMENT.md](docs/PRODUCTION_DEPLOYMENT.md)
-- **Current Status**: [k8s/DEPLOYMENT_STATUS.md](k8s/DEPLOYMENT_STATUS.md)
+- **EKS Management**: [EKS_MANAGEMENT_GUIDE.md](EKS_MANAGEMENT_GUIDE.md)
 
 ### Operations
 - **Troubleshooting**: [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
@@ -123,37 +133,29 @@ Historical documentation preserved for reference:
 - **Architecture**: [docs/Architecture_Diagrams.md](docs/Architecture_Diagrams.md)
 - **Testing**: [TESTING_GUIDE.md](TESTING_GUIDE.md)
 - **Current Features**: [STATUS.md](STATUS.md)
+- **Development Guide**: [CLAUDE.md](CLAUDE.md)
 
 ---
 
 ## 📊 Documentation Statistics
 
-- **Total Documentation Files**: ~75+ markdown files
-- **Active Documentation**: ~25 files (root + docs/ + k8s/ + hackathon_submission/)
-- **Archived Documentation**: ~50+ files (archive/ + archive/operations/ + archive/claudedocs/ + archive/temp_scripts/ + archive/status_reports/)
-- **Last Major Consolidation**: 2025-01-15
+- **Total Documentation Files**: ~100+ markdown files
+- **Active Documentation**: ~30 files (root + docs/ + k8s/ + hackathon_submission/)
+- **Archived Documentation**: ~70+ files (archive/)
+- **Last Major Consolidation**: 2025-01-16
 
 ---
 
 ## 🔄 Documentation Maintenance
 
-**Last Review:** 2025-01-15
+**Last Review:** 2025-01-16
 
 Documentation is actively maintained. Key updates:
-- ✅ Archived obsolete root-level documentation (BROWSER_UI_TEST_REPORT.md, CODE_REVIEW_ENHANCEMENTS.md, ENHANCEMENTS_COMPLETE.md, IMPLEMENTATION_SUMMARY.md) (2025-01-15)
-- ✅ Consolidated DEPLOYMENT.md with deployment success summary (2025-01-15)
-- ✅ Archived historical fix documentation (DOCKER_FIX_SUMMARY.md, K8S_IMPROVEMENTS_APPLIED.md, K8S_PENDING_PODS_FIX.md) (2025-01-15)
-- ✅ Archived testing reports (FINAL_TESTING_REPORT.md, TESTING_RESULTS_SUMMARY.md, USER_TESTING_PLAN.md, BROWSER_UI_TEST_REPORT.md) (2025-01-15)
-- ✅ Moved HACKATHON_DEMO_CHECKLIST.md to hackathon_submission/ (2025-01-15)
-- ✅ Archived temporary scripts and test files to archive/temp_scripts/ (2025-01-15)
-- ✅ Removed .bak backup files (2025-01-15)
-- ✅ Consolidated and archived obsolete documentation (2025-01-15)
-- ✅ Moved historical status reports, completion docs, and phase summaries to `archive/` (2025-01-15)
-- ✅ Archived security audit docs and secrets removal guides (2025-01-15)
-- ✅ Moved UX documentation (`claudedocs/`) to archive (2025-01-15)
-- ✅ Integrated NGC key troubleshooting into main troubleshooting guide (2025-01-15)
-- ✅ Moved `GET_NGC_KEY.md` to `docs/` directory (2025-01-15)
-- ✅ Updated documentation structure and index (2025-01-15)
+- ✅ **2025-01-16**: Consolidated enhancement documentation (moved to archive)
+- ✅ **2025-01-16**: Created unified documentation index
+- ✅ **2025-01-16**: Archived redundant testing/report files
+- ✅ **2025-01-16**: Organized documentation by audience and purpose
+- ✅ **2025-01-16**: Updated all documentation links
 
 ---
 
@@ -162,7 +164,8 @@ Documentation is actively maintained. Key updates:
 1. **Quick Questions**: Check [README.md](README.md) or [STATUS.md](STATUS.md)
 2. **Setup Issues**: See [HACKATHON_SETUP_GUIDE.md](HACKATHON_SETUP_GUIDE.md) or [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
 3. **Technical Details**: Browse [docs/](docs/) directory
-4. **Deployment Issues**: Check [k8s/DEPLOYMENT_STATUS.md](k8s/DEPLOYMENT_STATUS.md) or [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+4. **Deployment Issues**: Check [EKS_MANAGEMENT_GUIDE.md](EKS_MANAGEMENT_GUIDE.md) or [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)
+5. **Local Development**: See [LOCAL_SETUP_GUIDE.md](LOCAL_SETUP_GUIDE.md) and [LOCAL_TESTING_GUIDE.md](LOCAL_TESTING_GUIDE.md)
 
 ---
 

@@ -194,7 +194,11 @@
   - **Timestamp:** 2025-01-15 00:00:43
   - **Likely Cause:** Element reference changed during page interaction (dynamic DOM)
   - **Impact:** Low - occurred when clicking guided tour button
-  - **Recommendation:** Verify guided tour button functionality manually
+  - **Status:** ⚠️ **Known Limitation** - This error was observed during MCP browser testing and may be an MCP-specific artifact. The guided tour functionality should be verified manually in real browsers (Chrome, Firefox, Safari) to confirm if this reproduces outside the MCP testing environment.
+  - **Recommendation:** 
+    - Verify guided tour button functionality manually in real browsers
+    - If error reproduces in real browsers: Fix by ensuring element exists before click, add appropriate wait/retry or stable selectors, and handle dynamic DOM changes
+    - If error does NOT reproduce outside MCP: Document as MCP test limitation and mark test as environment-flaky
 
 ---
 

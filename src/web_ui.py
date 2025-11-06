@@ -801,6 +801,34 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# Suppress Streamlit session integrity errors (harmless browser compatibility issue)
+# This error occurs when Streamlit tries to track navigation but browser API isn't available
+import streamlit.components.v1 as components
+try:
+    # Inject script to suppress session integrity errors
+    components.html("""
+    <script>
+    // Suppress session-integrity.js errors
+    window.addEventListener('error', function(e) {
+        if (e.message && e.message.includes('onBeforeNavigate')) {
+            e.preventDefault();
+            return false;
+        }
+    }, true);
+    
+    // Also catch unhandled promise rejections
+    window.addEventListener('unhandledrejection', function(e) {
+        if (e.reason && e.reason.message && e.reason.message.includes('onBeforeNavigate')) {
+            e.preventDefault();
+            return false;
+        }
+    });
+    </script>
+    """, height=0)
+except Exception:
+    # Ignore if components.html fails
+    pass
+
 # Setup keyboard shortcuts and accessibility
 setup_keyboard_shortcuts()
 

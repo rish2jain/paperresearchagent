@@ -19,6 +19,9 @@ Completed status reports, test results, and implementation summaries:
 - **Deployment Status:** DEPLOYMENT_COMPLETE.md, DEPLOYMENT_SUMMARY.md
 - **Diagnostics:** SYNTHESIS_TIMEOUT_DIAGNOSIS.md
 
+**2025-01-16 Archive:**
+- **Testing Reports:** BROWSER_TESTING_REPORT.md, COMPLETE_USER_TESTING_REPORT.md, EKS_TESTING_REPORT.md, USER_TESTING_RESULTS.md, USER_TESTING_GUIDE.md, TESTING_STATUS.md
+
 ### `validation_reports/`
 Code validation, testing, and bug fix reports:
 - **Validation Reports:** COMPREHENSIVE_CODE_VALIDATION_REPORT.md, EKS_DEPLOYMENT_VALIDATION_REPORT.md
@@ -40,6 +43,12 @@ Obsolete documentation moved from root directory:
 - **Performance:** LAZY_LOADING_PERFORMANCE.md, COMPARE_NVIDIA_SETUP.md
 - **Deployment:** DEPLOYMENT_OPTIONS.md
 - **UX:** UX_DIAGNOSTIC_REPORT.md, UX_ENHANCEMENT_MASTER_PLAN.md
+
+**2025-01-16 Archive:**
+- **Status Reports:** FEATURE_STATUS_REPORT.md, IMPLEMENTATION_COMPLETE.md, NEXT_STEPS_COMPLETED.md, REMAINING_WORK.md, MOCKED_FEATURES_REPORT.md
+- **Research/Setup:** LOCAL_MAC_REDESIGN_RESEARCH.md, LOCAL_MAC_REDESIGN_SUMMARY.md
+- **Troubleshooting:** AWS_RESOURCES_STOPPED.md, REASONING_NIM_OOM_ISSUE.md, TROUBLESHOOTING_DEPLOYMENT.md
+- **Documentation:** DOCUMENTATION_CONSOLIDATION_2025-01-16.md
 
 ### `security_docs/`
 Security audit and remediation documentation:
@@ -72,12 +81,18 @@ Temporary scripts, test files, and backups:
 - Backup files (`.bak` files)
 - Test markdown files
 
+**2025-01-16 Archive:**
+- `temp_scripts/2025-01-16/`: test_user_experience.py, test_web_ui_access.sh
+- `temp_docs/2025-01-16/`: temp.md (from hackathon_submission/)
+- See: `TEMP_FILES_ARCHIVED_2025-01-16.md` for details
+
 ### Root Level Archive Files
 Historical project status and planning documents:
 - ALL_FEATURES_COMPLETE.md
 - CURRENT_STATUS.md
 - DELIVERABLES_SUMMARY.md
 - DOCUMENTATION_CONSOLIDATION_2025-01-15.md
+- DOCUMENTATION_CONSOLIDATION_2025-01-16.md (new)
 - DOCUMENTATION_CONSOLIDATION_SUMMARY.md
 - DOCUMENTATION_FIXES_APPLIED.md
 - DOCUMENTATION_REVIEW.md

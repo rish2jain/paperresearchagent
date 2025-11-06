@@ -23,7 +23,12 @@ from starlette.requests import Request as StarletteRequest
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
-from middleware import RequestIDMiddleware, RequestSizeMiddleware, ErrorHandlerMiddleware
+# Import middleware with fallback for different execution contexts
+try:
+    from .middleware import RequestIDMiddleware, RequestSizeMiddleware, ErrorHandlerMiddleware
+except ImportError:
+    # Fallback for direct script execution
+    from middleware import RequestIDMiddleware, RequestSizeMiddleware, ErrorHandlerMiddleware
 from pydantic import BaseModel, Field, model_validator
 from typing import Dict, List, Optional, Any
 import asyncio
@@ -33,32 +38,66 @@ import os
 from datetime import datetime
 import json
 
-from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
-from agents import ResearchOpsAgent, ResearchQuery, Synthesis
-from incremental_synthesizer import IncrementalSynthesizer
-from input_sanitization import (
-    sanitize_research_query,
-    validate_max_papers,
-    sanitize_year,
-    ValidationError as InputValidationError,
-)
-from exceptions import (
-    ResearchOpsError,
-    NIMServiceError,
-    ValidationError,
-    PaperSourceError,
-    CircuitBreakerOpenError,
-    ConfigurationError,
-)
-from constants import (
-    DEFAULT_CORS_ORIGINS,
-    CORS_MAX_AGE_SECONDS,
-    MAX_REQUEST_SIZE_BYTES,
-    HEALTH_CHECK_TIMEOUT_SECONDS,
-    HEALTH_CHECK_CONNECT_TIMEOUT_SECONDS,
-    HEALTH_CACHE_TTL_SECONDS,
-)
-from health_cache import get_health_cache
+# Import local modules with fallback for different execution contexts
+try:
+    from .nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+    from .unified_clients import UnifiedReasoningClient, UnifiedEmbeddingClient
+    from .agents import ResearchOpsAgent, ResearchQuery, Synthesis
+    from .denario_integration import DenarioIntegration
+    from .incremental_synthesizer import IncrementalSynthesizer
+    from .input_sanitization import (
+        sanitize_research_query,
+        validate_max_papers,
+        sanitize_year,
+        ValidationError as InputValidationError,
+    )
+    from .exceptions import (
+        ResearchOpsError,
+        NIMServiceError,
+        ValidationError,
+        PaperSourceError,
+        CircuitBreakerOpenError,
+        ConfigurationError,
+    )
+    from .constants import (
+        DEFAULT_CORS_ORIGINS,
+        CORS_MAX_AGE_SECONDS,
+        MAX_REQUEST_SIZE_BYTES,
+        HEALTH_CHECK_TIMEOUT_SECONDS,
+        HEALTH_CHECK_CONNECT_TIMEOUT_SECONDS,
+        HEALTH_CACHE_TTL_SECONDS,
+    )
+    from .health_cache import get_health_cache
+except ImportError:
+    # Fallback for direct script execution
+    from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+    from unified_clients import UnifiedReasoningClient, UnifiedEmbeddingClient
+    from agents import ResearchOpsAgent, ResearchQuery, Synthesis
+    from denario_integration import DenarioIntegration
+    from incremental_synthesizer import IncrementalSynthesizer
+    from input_sanitization import (
+        sanitize_research_query,
+        validate_max_papers,
+        sanitize_year,
+        ValidationError as InputValidationError,
+    )
+    from exceptions import (
+        ResearchOpsError,
+        NIMServiceError,
+        ValidationError,
+        PaperSourceError,
+        CircuitBreakerOpenError,
+        ConfigurationError,
+    )
+    from constants import (
+        DEFAULT_CORS_ORIGINS,
+        CORS_MAX_AGE_SECONDS,
+        MAX_REQUEST_SIZE_BYTES,
+        HEALTH_CHECK_TIMEOUT_SECONDS,
+        HEALTH_CHECK_CONNECT_TIMEOUT_SECONDS,
+        HEALTH_CACHE_TTL_SECONDS,
+    )
+    from health_cache import get_health_cache
 
 # Import export functions
 try:
@@ -617,12 +656,15 @@ async def research(
         # Apply date filtering imports
         if request.start_year or request.end_year:
             try:
-                from date_filter import filter_by_year_range, prioritize_recent_papers
+                from .date_filter import filter_by_year_range, prioritize_recent_papers
             except ImportError:
-                from src.date_filter import (
-                    filter_by_year_range,
-                    prioritize_recent_papers,
-                )
+                try:
+                    from date_filter import filter_by_year_range, prioritize_recent_papers
+                except ImportError:
+                    from src.date_filter import (
+                        filter_by_year_range,
+                        prioritize_recent_papers,
+                    )
 
         # Initialize NIM clients with graceful degradation and timeout management
         try:
@@ -636,11 +678,15 @@ async def research(
                 use_async_timeout = False
 
             async with (
-                ReasoningNIMClient() as reasoning,
-                EmbeddingNIMClient() as embedding,
+                UnifiedReasoningClient() as reasoning,
+                UnifiedEmbeddingClient() as embedding,
             ):
                 # Create agent
                 agent = ResearchOpsAgent(reasoning, embedding)
+                
+                # Initialize Denario integration if enabled
+                denario_enabled = os.getenv("DENARIO_ENABLED", "false").lower() == "true"
+                denario = DenarioIntegration(enabled=denario_enabled) if denario_enabled else None
 
                 # Run research workflow with timeout
                 try:
@@ -669,6 +715,11 @@ async def research(
                     result["message"] = (
                         "Query exceeded time limit, showing partial results"
                     )
+                
+                # Enhance with Denario if enabled
+                if denario and denario.is_available():
+                    result = denario.enhance_synthesis_with_ideas(result)
+                    logger.info("✅ Enhanced synthesis with Denario research ideas")
 
             # Cache synthesis result
             if synthesis_cache:
@@ -874,11 +925,16 @@ async def research(
         )
     except Exception as e:
         logger.error(f"Research error: {e}", exc_info=True)
+        is_debug = os.getenv("DEBUG", "false").lower() == "true"
+        error_message = str(e) if e else "Unknown error occurred"
+        if not error_message:
+            error_message = f"{type(e).__name__}: {repr(e)}"
         raise HTTPException(
             status_code=500,
             detail={
                 "error": "Internal error",
-                "message": str(e),
+                "message": error_message if is_debug else "Research workflow failed",
+                "error_type": type(e).__name__,
                 "timestamp": datetime.now().isoformat(),
             },
         )
@@ -1195,7 +1251,7 @@ async def analyze_pdf_full_text(request: BibTeXExportRequest):
         # Initialize reasoning client for enhanced extraction
         reasoning_client = None
         try:
-            async with ReasoningNIMClient() as client:
+            async with UnifiedReasoningClient() as client:
                 reasoning_client = client
                 results = await analyze_papers_full_text(
                     request.papers,
@@ -1559,13 +1615,17 @@ async def research_stream(request: ResearchRequest):
             yield f"event: agent_status\n"
             yield f"data: {json.dumps({'agent': 'Scout', 'status': 'starting', 'message': 'Searching for papers'})}\n\n"
             
-            # Initialize NIM clients
+            # Initialize NIM clients (unified - supports local or cloud)
             async with (
-                ReasoningNIMClient() as reasoning,
-                EmbeddingNIMClient() as embedding,
+                UnifiedReasoningClient() as reasoning,
+                UnifiedEmbeddingClient() as embedding,
             ):
                 # Create agent
                 agent = ResearchOpsAgent(reasoning, embedding)
+                
+                # Initialize Denario integration if enabled
+                denario_enabled = os.getenv("DENARIO_ENABLED", "false").lower() == "true"
+                denario = DenarioIntegration(enabled=denario_enabled) if denario_enabled else None
                 
                 # Phase 1: Search (0-30s)
                 yield f"event: agent_status\n"

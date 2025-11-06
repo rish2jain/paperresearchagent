@@ -14,7 +14,12 @@ except ImportError:
     # Fallback for older versions
     from fastapi import Request
 from starlette.responses import JSONResponse
-from constants import MAX_REQUEST_SIZE_BYTES
+# Import constants with fallback for different execution contexts
+try:
+    from .constants import MAX_REQUEST_SIZE_BYTES
+except ImportError:
+    # Fallback for direct script execution
+    from constants import MAX_REQUEST_SIZE_BYTES
 
 logger = logging.getLogger(__name__)
 

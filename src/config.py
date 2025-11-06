@@ -27,6 +27,19 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
+class LocalModelConfig:
+    """Local model configuration"""
+    use_local_models: bool = False
+    reasoning_model_path: Optional[str] = None
+    reasoning_model_n_ctx: int = 4096
+    reasoning_model_n_gpu_layers: int = -1
+    reasoning_use_mlx: bool = False
+    embedding_model_name: str = "all-MiniLM-L6-v2"
+    embedding_cache_folder: Optional[str] = None
+    embedding_device: Optional[str] = None  # 'mps', 'cpu', or None for auto
+
+
+@dataclass
 class NIMConfig:
     """NIM service configuration"""
     reasoning_nim_url: str
@@ -142,14 +155,19 @@ class APIConfig:
 class Config:
     """Main configuration object"""
     nim: NIMConfig
+    local_models: LocalModelConfig
     agent: AgentConfig
     api: APIConfig
     paper_sources: PaperSourceConfig
+    qdrant_url: str = "http://localhost:6333"  # Local Qdrant default
     
     @classmethod
     def from_env(cls) -> 'Config':
         """Load configuration from environment variables"""
-        # NIM Configuration
+        # Check if using local models
+        use_local_models = os.getenv("USE_LOCAL_MODELS", "false").lower() == "true"
+        
+        # NIM Configuration (for cloud mode)
         reasoning_nim_url = os.getenv(
             "REASONING_NIM_URL",
             "http://reasoning-nim.research-ops.svc.cluster.local:8000"
@@ -169,6 +187,21 @@ class Config:
             embedding_timeout_connect=int(os.getenv("EMBEDDING_TIMEOUT_CONNECT", "10")),
             embedding_timeout_sock_read=int(os.getenv("EMBEDDING_TIMEOUT_SOCK_READ", "30"))
         )
+        
+        # Local Model Configuration
+        local_models_config = LocalModelConfig(
+            use_local_models=use_local_models,
+            reasoning_model_path=os.getenv("REASONING_MODEL_PATH"),
+            reasoning_model_n_ctx=int(os.getenv("REASONING_MODEL_N_CTX", "4096")),
+            reasoning_model_n_gpu_layers=int(os.getenv("REASONING_MODEL_N_GPU_LAYERS", "-1")),
+            reasoning_use_mlx=os.getenv("REASONING_USE_MLX", "false").lower() == "true",
+            embedding_model_name=os.getenv("EMBEDDING_MODEL_NAME", "all-MiniLM-L6-v2"),
+            embedding_cache_folder=os.getenv("EMBEDDING_CACHE_FOLDER"),
+            embedding_device=os.getenv("EMBEDDING_DEVICE")  # None = auto-detect
+        )
+        
+        # Qdrant URL (local or cloud)
+        qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
         
         # Agent Configuration
         agent_config = AgentConfig(
@@ -198,9 +231,11 @@ class Config:
         
         config = cls(
             nim=nim_config,
+            local_models=local_models_config,
             agent=agent_config,
             api=api_config,
-            paper_sources=paper_source_config
+            paper_sources=paper_source_config,
+            qdrant_url=qdrant_url
         )
         
         logger.info("Configuration loaded from environment variables")

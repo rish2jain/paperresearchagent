@@ -86,3 +86,4 @@ echo "  aws eks list-clusters --region ${REGION}"
 echo "  aws ec2 describe-instances --region ${REGION} --filters 'Name=tag:eks:cluster-name,Values=${CLUSTER_NAME}'"
 echo ""
 
+

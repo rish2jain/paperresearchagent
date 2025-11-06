@@ -1,0 +1,8 @@
+# Denario Integration Dependencies
+# This file requires Python >=3.12
+# Install with: pip install -r requirements-denario.txt
+# Or use PEP 508 environment marker: pip install "denario[app]>=1.0.0; python_version>='3.12'"
+
+# Denario integration (requires Python >=3.12)
+denario[app]>=1.0.0; python_version>="3.12"
+
