@@ -21,46 +21,76 @@ except ImportError:
     Field = lambda *args, **kwargs: None
     validator = lambda *args, **kwargs: lambda f: f
 
-from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
-from config import PaperSourceConfig
-from progress_tracker import ProgressTracker, Stage
-from query_expansion import expand_search_queries
+# Import core modules with fallback for different execution contexts
+try:
+    from .nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+    from .config import PaperSourceConfig
+    from .progress_tracker import ProgressTracker, Stage
+    from .query_expansion import expand_search_queries
+except ImportError:
+    # Fallback for direct script execution
+    from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+    from config import PaperSourceConfig
+    from progress_tracker import ProgressTracker, Stage
+    from query_expansion import expand_search_queries
 
 # Optional imports for enhancements
 try:
-    from hybrid_retrieval import HybridRetriever
+    from .hybrid_retrieval import HybridRetriever
     HYBRID_RETRIEVAL_AVAILABLE = True
 except ImportError:
-    HYBRID_RETRIEVAL_AVAILABLE = False
+    try:
+        from hybrid_retrieval import HybridRetriever
+        HYBRID_RETRIEVAL_AVAILABLE = True
+    except ImportError:
+        HYBRID_RETRIEVAL_AVAILABLE = False
 
 try:
-    from reranker import Reranker
+    from .reranker import Reranker
     RERANKER_AVAILABLE = True
 except ImportError:
-    RERANKER_AVAILABLE = False
+    try:
+        from reranker import Reranker
+        RERANKER_AVAILABLE = True
+    except ImportError:
+        RERANKER_AVAILABLE = False
 
 try:
-    from citation_graph import build_citation_graph_from_papers, CitationGraph
+    from .citation_graph import build_citation_graph_from_papers, CitationGraph
     CITATION_GRAPH_AVAILABLE = True
 except ImportError:
-    CITATION_GRAPH_AVAILABLE = False
+    try:
+        from citation_graph import build_citation_graph_from_papers, CitationGraph
+        CITATION_GRAPH_AVAILABLE = True
+    except ImportError:
+        CITATION_GRAPH_AVAILABLE = False
 
 # Optional import for boolean search
 try:
-    from boolean_search import parse_boolean_query, expand_boolean_query
+    from .boolean_search import parse_boolean_query, expand_boolean_query
     BOOLEAN_SEARCH_AVAILABLE = True
 except ImportError:
-    BOOLEAN_SEARCH_AVAILABLE = False
+    try:
+        from boolean_search import parse_boolean_query, expand_boolean_query
+        BOOLEAN_SEARCH_AVAILABLE = True
+    except ImportError:
+        BOOLEAN_SEARCH_AVAILABLE = False
 
 # Optional imports for caching and metrics
 try:
-    from cache import get_cache, PaperMetadataCache, SynthesisCache
-    from metrics import get_metrics_collector
+    from .cache import get_cache, PaperMetadataCache, SynthesisCache
+    from .metrics import get_metrics_collector
     CACHE_AVAILABLE = True
     METRICS_AVAILABLE = True
 except ImportError:
-    CACHE_AVAILABLE = False
-    METRICS_AVAILABLE = False
+    try:
+        from cache import get_cache, PaperMetadataCache, SynthesisCache
+        from metrics import get_metrics_collector
+        CACHE_AVAILABLE = True
+        METRICS_AVAILABLE = True
+    except ImportError:
+        CACHE_AVAILABLE = False
+        METRICS_AVAILABLE = False
 
 # Optional import for input sanitization with fallback
 try:

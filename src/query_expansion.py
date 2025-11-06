@@ -5,7 +5,12 @@ Intelligently expands search queries using embeddings to find related terms
 
 from typing import List, Dict, Any
 import logging
-from nim_clients import EmbeddingNIMClient
+# Import with fallback for different execution contexts
+try:
+    from .nim_clients import EmbeddingNIMClient
+except ImportError:
+    # Fallback for direct script execution
+    from nim_clients import EmbeddingNIMClient
 
 logger = logging.getLogger(__name__)
 

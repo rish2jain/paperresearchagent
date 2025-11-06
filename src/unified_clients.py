@@ -7,20 +7,33 @@ import os
 import logging
 from typing import Optional
 
-from config import Config, get_config
+# Import config with fallback for different execution contexts
+try:
+    from .config import Config, get_config
+except ImportError:
+    # Fallback for direct script execution
+    from config import Config, get_config
 
 logger = logging.getLogger(__name__)
 
 # Try to import local models
 try:
-    from local_models import LocalReasoningModel, LocalEmbeddingModel
+    from .local_models import LocalReasoningModel, LocalEmbeddingModel
     LOCAL_MODELS_AVAILABLE = True
 except ImportError:
-    LOCAL_MODELS_AVAILABLE = False
-    logger.warning("Local models not available. Install dependencies for local mode.")
+    try:
+        from local_models import LocalReasoningModel, LocalEmbeddingModel
+        LOCAL_MODELS_AVAILABLE = True
+    except ImportError:
+        LOCAL_MODELS_AVAILABLE = False
+        logger.warning("Local models not available. Install dependencies for local mode.")
 
-# Import NIM clients
-from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+# Import NIM clients with fallback for different execution contexts
+try:
+    from .nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+except ImportError:
+    # Fallback for direct script execution
+    from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
 
 
 class UnifiedReasoningClient:

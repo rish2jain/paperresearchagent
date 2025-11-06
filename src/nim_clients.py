@@ -16,11 +16,20 @@ from tenacity import (
     before_sleep_log
 )
 import time
-from constants import (
-    NIM_CONNECT_TIMEOUT_SECONDS,
-    NIM_SOCK_READ_TIMEOUT_SECONDS,
-    DEFAULT_TIMEOUT_SECONDS
-)
+# Import constants with fallback for different execution contexts
+try:
+    from .constants import (
+        NIM_CONNECT_TIMEOUT_SECONDS,
+        NIM_SOCK_READ_TIMEOUT_SECONDS,
+        DEFAULT_TIMEOUT_SECONDS
+    )
+except ImportError:
+    # Fallback for direct script execution
+    from constants import (
+        NIM_CONNECT_TIMEOUT_SECONDS,
+        NIM_SOCK_READ_TIMEOUT_SECONDS,
+        DEFAULT_TIMEOUT_SECONDS
+    )
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -39,16 +48,24 @@ except ImportError:
 
 # Optional imports for metrics and caching
 try:
-    from metrics import get_metrics_collector
+    from .metrics import get_metrics_collector
     METRICS_AVAILABLE = True
 except ImportError:
-    METRICS_AVAILABLE = False
+    try:
+        from metrics import get_metrics_collector
+        METRICS_AVAILABLE = True
+    except ImportError:
+        METRICS_AVAILABLE = False
 
 try:
-    from cache import get_cache, EmbeddingCache
+    from .cache import get_cache, EmbeddingCache
     CACHE_AVAILABLE = True
 except ImportError:
-    CACHE_AVAILABLE = False
+    try:
+        from cache import get_cache, EmbeddingCache
+        CACHE_AVAILABLE = True
+    except ImportError:
+        CACHE_AVAILABLE = False
 
 
 class ReasoningNIMClient:

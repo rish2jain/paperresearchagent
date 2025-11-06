@@ -12,8 +12,14 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
-from agents import Synthesis
+# Import with fallback for different execution contexts
+try:
+    from .nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+    from .agents import Synthesis
+except ImportError:
+    # Fallback for direct script execution
+    from nim_clients import ReasoningNIMClient, EmbeddingNIMClient
+    from agents import Synthesis
 
 logger = logging.getLogger(__name__)
 

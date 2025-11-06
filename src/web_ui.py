@@ -805,7 +805,7 @@ st.set_page_config(
 # This error occurs when Streamlit tries to track navigation but browser API isn't available
 import streamlit.components.v1 as components
 try:
-    # Inject script to suppress session integrity errors
+    # Inject script to suppress session integrity errors and Permissions Policy warnings
     components.html("""
     <script>
     // Suppress session-integrity.js errors
@@ -823,6 +823,38 @@ try:
             return false;
         }
     });
+    
+    // Suppress Permissions Policy warnings (harmless browser warnings)
+    const originalWarn = console.warn;
+    console.warn = function(...args) {
+        const message = args.join(' ');
+        // Suppress unrecognized feature warnings
+        if (message.includes('Unrecognized feature:') || 
+            message.includes('ambient-light-sensor') ||
+            message.includes('battery') ||
+            message.includes('document-domain') ||
+            message.includes('layout-animations') ||
+            message.includes('legacy-image-formats') ||
+            message.includes('oversized-images') ||
+            message.includes('vr') ||
+            message.includes('wake-lock')) {
+            return; // Suppress these warnings
+        }
+        // Call original warn for other messages
+        originalWarn.apply(console, args);
+    };
+    
+    // Suppress iframe sandbox warnings
+    const originalError = console.error;
+    console.error = function(...args) {
+        const message = args.join(' ');
+        if (message.includes('iframe') && message.includes('sandbox') && 
+            message.includes('allow-scripts') && message.includes('allow-same-origin')) {
+            return; // Suppress sandbox escape warnings
+        }
+        // Call original error for other messages
+        originalError.apply(console, args);
+    };
     </script>
     """, height=0)
 except Exception:
@@ -1591,239 +1623,259 @@ def stream_research_results(
         # Process SSE events
         client = sseclient.SSEClient(response)
 
-        for event in client.events():
-            event_type = event.event
-            # Safely parse JSON with error handling
-            if event.data:
-                try:
-                    event_data = json.loads(event.data)
-                except (json.JSONDecodeError, ValueError) as e:
+        try:
+            for event in client.events():
+                event_type = event.event
+                # Safely parse JSON with error handling
+                if event.data:
+                    try:
+                        event_data = json.loads(event.data)
+                    except (json.JSONDecodeError, ValueError) as e:
+                        event_data = {}
+                        st.warning(f"⚠️ Failed to parse SSE event data: {str(e)}")
+                        logger.warning(
+                            f"SSE JSON parsing error: {str(e)}, raw data: {event.data[:200]}"
+                        )
+                        continue
+                else:
                     event_data = {}
-                    st.warning(f"⚠️ Failed to parse SSE event data: {str(e)}")
-                    logger.warning(
-                        f"SSE JSON parsing error: {str(e)}, raw data: {event.data[:200]}"
-                    )
-                    continue
-            else:
-                event_data = {}
 
-            # Handle different event types
-            if event_type == "agent_status":
-                agent = event_data.get("agent", "Unknown")
-                message = event_data.get("message", "Working...")
-                status_container.info(f"🤖 **{agent}**: {message}")
+                # Handle different event types
+                if event_type == "agent_status":
+                    agent = event_data.get("agent", "Unknown")
+                    message = event_data.get("message", "Working...")
+                    status_container.info(f"🤖 **{agent}**: {message}")
 
-                # Update progress based on agent
-                if agent == "Scout":
-                    progress_bar.progress(0.1)
-                    progress_text.text("🔍 Searching for papers...")
-                elif agent == "Analyst":
-                    progress_bar.progress(0.3)
-                    progress_text.text("📊 Analyzing papers...")
-                elif agent == "Synthesizer":
-                    progress_bar.progress(0.6)
-                    progress_text.text("🧩 Synthesizing insights...")
-                elif agent == "Coordinator":
-                    progress_bar.progress(0.9)
-                    progress_text.text("✅ Finalizing...")
+                    # Update progress based on agent
+                    if agent == "Scout":
+                        progress_bar.progress(0.1)
+                        progress_text.text("🔍 Searching for papers...")
+                    elif agent == "Analyst":
+                        progress_bar.progress(0.3)
+                        progress_text.text("📊 Analyzing papers...")
+                    elif agent == "Synthesizer":
+                        progress_bar.progress(0.6)
+                        progress_text.text("🧩 Synthesizing insights...")
+                    elif agent == "Coordinator":
+                        progress_bar.progress(0.9)
+                        progress_text.text("✅ Finalizing...")
 
-            elif event_type == "papers_found":
-                # Papers discovered - show immediately!
-                papers_found = event_data.get("papers", [])
-                total_papers = event_data.get("papers_count", len(papers_found))
-                decisions.extend(event_data.get("decisions", []))
+                elif event_type == "papers_found":
+                    # Papers discovered - show immediately!
+                    papers_found = event_data.get("papers", [])
+                    total_papers = event_data.get("papers_count", len(papers_found))
+                    decisions.extend(event_data.get("decisions", []))
 
-                progress_bar.progress(0.25)
-                progress_text.text(f"✅ Found {total_papers} papers!")
+                    progress_bar.progress(0.25)
+                    progress_text.text(f"✅ Found {total_papers} papers!")
 
-                with papers_container:
-                    st.markdown("### 📚 Papers Found")
-                    st.success(
-                        f"**{total_papers} papers** discovered from academic databases"
-                    )
-
-                    # Show papers in expandable section
-                    with st.expander(
-                        f"📖 View all {total_papers} papers", expanded=False
-                    ):
-                        for i, paper in enumerate(
-                            papers_found[:10], 1
-                        ):  # Show first 10
-                            st.markdown(f"""
-                            **{i}. {paper.get("title", "Untitled")}**
-                            - *Authors*: {", ".join(paper.get("authors", [])[:3])}
-                            - *Source*: {paper.get("source", "Unknown")}
-                            - [View Paper]({paper.get("url", "#")})
-                            """)
-
-                        if total_papers > 10:
-                            st.caption(f"*...and {total_papers - 10} more papers*")
-
-            elif event_type == "paper_analyzed":
-                # Paper analysis progress - real-time updates!
-                paper_number = event_data.get("paper_number", 0)
-                total = event_data.get("total", total_papers)
-                paper_title = event_data.get("title", "Unknown")
-                findings_count = event_data.get("findings_count", 0)
-                confidence = event_data.get("confidence", 0.0)
-                
-                papers_analyzed_count = paper_number
-                total_papers = max(total_papers, total)
-
-                if total > 0:
-                    analysis_progress = 0.25 + (0.35 * (papers_analyzed_count / total))
-                    progress_bar.progress(analysis_progress)
-                    progress_text.markdown(
-                        f"📊 **Analyzed {papers_analyzed_count}/{total} papers**\n"
-                        f"*Current: {paper_title[:60]}{'...' if len(paper_title) > 60 else ''}*"
-                    )
-                    
-                    # Show live paper analysis in container
                     with papers_container:
-                        st.caption(f"✅ Paper {paper_number}/{total}: {findings_count} findings, {confidence:.0%} confidence")
+                        st.markdown("### 📚 Papers Found")
+                        st.success(
+                            f"**{total_papers} papers** discovered from academic databases"
+                        )
 
-            elif event_type == "theme_emerging":
+                        # Show papers in expandable section
+                        with st.expander(
+                            f"📖 View all {total_papers} papers", expanded=False
+                        ):
+                            for i, paper in enumerate(
+                                papers_found[:10], 1
+                            ):  # Show first 10
+                                st.markdown(f"""
+                                **{i}. {paper.get("title", "Untitled")}**
+                                - *Authors*: {", ".join(paper.get("authors", [])[:3])}
+                                - *Source*: {paper.get("source", "Unknown")}
+                                - [View Paper]({paper.get("url", "#")})
+                                """)
+
+                            if total_papers > 10:
+                                st.caption(f"*...and {total_papers - 10} more papers*")
+
+                elif event_type == "paper_analyzed":
+                    # Paper analysis progress - real-time updates!
+                    paper_number = event_data.get("paper_number", 0)
+                    total = event_data.get("total", total_papers)
+                    paper_title = event_data.get("title", "Unknown")
+                    findings_count = event_data.get("findings_count", 0)
+                    confidence = event_data.get("confidence", 0.0)
+                    
+                    papers_analyzed_count = paper_number
+                    total_papers = max(total_papers, total)
+
+                    if total > 0:
+                        analysis_progress = 0.25 + (0.35 * (papers_analyzed_count / total))
+                        progress_bar.progress(analysis_progress)
+                        progress_text.markdown(
+                            f"📊 **Analyzed {papers_analyzed_count}/{total} papers**\n"
+                            f"*Current: {paper_title[:60]}{'...' if len(paper_title) > 60 else ''}*"
+                        )
+                        
+                        # Show live paper analysis in container
+                        with papers_container:
+                            st.caption(f"✅ Paper {paper_number}/{total}: {findings_count} findings, {confidence:.0%} confidence")
+
+                elif event_type == "theme_emerging":
                 # New theme discovered - show live!
-                theme_name = event_data.get("theme_name", "Unknown Theme")
-                confidence = event_data.get("confidence", 0.0)
-                initial_finding = event_data.get("initial_finding", "N/A")
-                paper_number = event_data.get("paper_number", 0)
+                    theme_name = event_data.get("theme_name", "Unknown Theme")
+                    confidence = event_data.get("confidence", 0.0)
+                    initial_finding = event_data.get("initial_finding", "N/A")
+                    paper_number = event_data.get("paper_number", 0)
                 
-                theme_data = {
+                    theme_data = {
                     "name": theme_name,
                     "confidence": confidence,
                     "finding": initial_finding
-                }
-                themes_found.append(theme_data)
+                    }
+                    themes_found.append(theme_data)
 
-                with themes_container:
-                    st.markdown("### 🔍 Common Themes Emerging (Live)")
-                    for i, t in enumerate(themes_found, 1):
-                        st.markdown(
-                            f"**{i}. {t['name']}** "
-                            f"({t['confidence']:.0%} confidence)\n"
-                            f"*{t['finding'][:80]}{'...' if len(t['finding']) > 80 else ''}*"
-                        )
+                    with themes_container:
+                        st.markdown("### 🔍 Common Themes Emerging (Live)")
+                        for i, t in enumerate(themes_found, 1):
+                            st.markdown(
+                                f"**{i}. {t['name']}** "
+                                f"({t['confidence']:.0%} confidence)\n"
+                                f"*{t['finding'][:80]}{'...' if len(t['finding']) > 80 else ''}*"
+                            )
                         
-            elif event_type == "theme_strengthened":
-                # Theme confidence increased
-                theme_name = event_data.get("theme_name", "")
-                old_conf = event_data.get("old_confidence", 0.0)
-                new_conf = event_data.get("new_confidence", 0.0)
-                
-                # Update existing theme if found
-                for theme in themes_found:
-                    if theme.get("name") == theme_name:
-                        theme["confidence"] = new_conf
-                        break
-                
-                with themes_container:
-                    st.caption(f"💪 Theme '{theme_name}' strengthened: {old_conf:.0%} → {new_conf:.0%}")
+                elif event_type == "theme_strengthened":
+                    # Theme confidence increased
+                    theme_name = event_data.get("theme_name", "")
+                    old_conf = event_data.get("old_confidence", 0.0)
+                    new_conf = event_data.get("new_confidence", 0.0)
                     
-            elif event_type == "themes_merged":
-                # Themes were merged
-                merged_from = event_data.get("merged_from", "")
-                merged_into = event_data.get("merged_into", "")
-                
-                with themes_container:
-                    st.caption(f"🔗 Merged '{merged_from}' into '{merged_into}'")
+                    # Update existing theme if found
+                    for theme in themes_found:
+                        if theme.get("name") == theme_name:
+                            theme["confidence"] = new_conf
+                            break
                     
-            elif event_type == "synthesis_update":
-                # Comprehensive synthesis update
-                update_data = event_data
-                themes = update_data.get("themes", [])
-                contradictions = update_data.get("contradictions", [])
-                
-                # Update themes display
-                themes_found = [{"name": t.get("name", ""), "confidence": t.get("confidence", 0.0), "finding": ""} 
-                               for t in themes]
-                
-                with themes_container:
-                    st.markdown("### 🔍 Common Themes Emerging (Live)")
-                    for i, t in enumerate(themes_found, 1):
-                        st.markdown(f"**{i}. {t['name']}** ({t['confidence']:.0%} confidence)")
-                        
-                # Update contradictions
-                contradictions_found = contradictions
-                with contradictions_container:
-                    if contradictions:
-                        st.markdown("### ⚡ Contradictions Detected (Live)")
-                        for i, c in enumerate(contradictions, 1):
-                            finding_a = c.get("finding_a", "Unknown")
-                            finding_b = c.get("finding_b", "Unknown")
-                            st.warning(f"**{i}.** {finding_a} vs {finding_b}")
+                    with themes_container:
+                        st.caption(f"💪 Theme '{theme_name}' strengthened: {old_conf:.0%} → {new_conf:.0%}")
+                    
+                elif event_type == "themes_merged":
+                    # Themes were merged
+                    merged_from = event_data.get("merged_from", "")
+                    merged_into = event_data.get("merged_into", "")
+                    
+                    with themes_container:
+                        st.caption(f"🔗 Merged '{merged_from}' into '{merged_into}'")
+                    
+                elif event_type == "synthesis_update":
+                    # Comprehensive synthesis update
+                    update_data = event_data
+                    themes = update_data.get("themes", [])
+                    contradictions = update_data.get("contradictions", [])
+                    
+                    # Update themes display
+                    themes_found = [{"name": t.get("name", ""), "confidence": t.get("confidence", 0.0), "finding": ""} 
+                                   for t in themes]
+                    
+                    with themes_container:
+                        st.markdown("### 🔍 Common Themes Emerging (Live)")
+                        for i, t in enumerate(themes_found, 1):
+                            st.markdown(f"**{i}. {t['name']}** ({t['confidence']:.0%} confidence)")
                             
-            elif event_type == "theme_found":
-                # Legacy event type - keep for compatibility
-                theme = event_data.get("theme", "")
-                theme_number = event_data.get("theme_number", len(themes_found) + 1)
-                total_themes = event_data.get("total_themes", 0)
-                themes_found.append({"name": theme, "confidence": 0.0, "finding": ""})
+                    # Update contradictions
+                    contradictions_found = contradictions
+                    with contradictions_container:
+                        if contradictions:
+                            st.markdown("### ⚡ Contradictions Detected (Live)")
+                            for i, c in enumerate(contradictions, 1):
+                                finding_a = c.get("finding_a", "Unknown")
+                                finding_b = c.get("finding_b", "Unknown")
+                                st.warning(f"**{i}.** {finding_a} vs {finding_b}")
+                            
+                elif event_type == "theme_found":
+                    # Legacy event type - keep for compatibility
+                    theme = event_data.get("theme", "")
+                    theme_number = event_data.get("theme_number", len(themes_found) + 1)
+                    total_themes = event_data.get("total_themes", 0)
+                    themes_found.append({"name": theme, "confidence": 0.0, "finding": ""})
 
-                progress_bar.progress(
-                    0.6 + (0.15 * (theme_number / max(total_themes, 1)))
-                )
+                    progress_bar.progress(
+                        0.6 + (0.15 * (theme_number / max(total_themes, 1)))
+                    )
 
-                with themes_container:
-                    st.markdown("### 🔍 Common Themes Emerging")
-                    for i, t in enumerate(themes_found, 1):
-                        st.markdown(f"**{i}.** {t.get('name', t)}")
+                    with themes_container:
+                        st.markdown("### 🔍 Common Themes Emerging")
+                        for i, t in enumerate(themes_found, 1):
+                            st.markdown(f"**{i}.** {t.get('name', t)}")
 
-            elif event_type == "contradiction_discovered":
-                # Contradiction detected - show live alert!
-                finding_a = event_data.get("finding_a", "Unknown")
-                finding_b = event_data.get("finding_b", "Unknown")
-                explanation = event_data.get("explanation", "")
-                severity = event_data.get("severity", "medium")
-                
-                contradiction_data = {
-                    "finding_a": finding_a,
-                    "finding_b": finding_b,
-                    "explanation": explanation,
-                    "severity": severity
-                }
-                contradictions_found.append(contradiction_data)
+                elif event_type == "contradiction_discovered":
+                    # Contradiction detected - show live alert!
+                    finding_a = event_data.get("finding_a", "Unknown")
+                    finding_b = event_data.get("finding_b", "Unknown")
+                    explanation = event_data.get("explanation", "")
+                    severity = event_data.get("severity", "medium")
+                    
+                    contradiction_data = {
+                        "finding_a": finding_a,
+                        "finding_b": finding_b,
+                        "explanation": explanation,
+                        "severity": severity
+                    }
+                    contradictions_found.append(contradiction_data)
 
-                with contradictions_container:
-                    st.markdown("### ⚡ Contradictions Detected (Live)")
-                    for i, c in enumerate(contradictions_found, 1):
-                        st.warning(
-                            f"**{i}. {c['finding_a']}** vs **{c['finding_b']}**\n"
-                            f"*{c['explanation'][:100]}{'...' if len(c['explanation']) > 100 else ''}*"
-                        )
+                    with contradictions_container:
+                        st.markdown("### ⚡ Contradictions Detected (Live)")
+                        for i, c in enumerate(contradictions_found, 1):
+                            st.warning(
+                                f"**{i}. {c['finding_a']}** vs **{c['finding_b']}**\n"
+                                f"*{c['explanation'][:100]}{'...' if len(c['explanation']) > 100 else ''}*"
+                            )
                         
-            elif event_type == "contradiction_found":
-                # Legacy event type - keep for compatibility
-                contradiction = event_data.get("contradiction", {})
-                contradictions_found.append(contradiction)
+                elif event_type == "contradiction_found":
+                    # Legacy event type - keep for compatibility
+                    contradiction = event_data.get("contradiction", {})
+                    contradictions_found.append(contradiction)
 
-                with contradictions_container:
-                    st.markdown("### ⚡ Contradictions Detected")
-                    for i, c in enumerate(contradictions_found, 1):
-                        conflict = c.get("conflict", "Unknown conflict")
-                        st.warning(f"**{i}.** {conflict}")
+                    with contradictions_container:
+                        st.markdown("### ⚡ Contradictions Detected")
+                        for i, c in enumerate(contradictions_found, 1):
+                            conflict = c.get("conflict", "Unknown conflict")
+                            st.warning(f"**{i}.** {conflict}")
 
-            elif event_type == "synthesis_complete":
-                # Final synthesis ready!
-                final_result = event_data
-                progress_bar.progress(1.0)
-                progress_text.text("✅ Research synthesis complete!")
+                elif event_type == "synthesis_complete":
+                    # Final synthesis ready!
+                    final_result = event_data
+                    progress_bar.progress(1.0)
+                    progress_text.text("✅ Research synthesis complete!")
 
-                processing_time = final_result.get("processing_time_seconds", 0)
-                st.success(
-                    f"🎉 **Research complete!** Analyzed {total_papers} papers in {processing_time:.1f}s"
-                )
+                    processing_time = final_result.get("processing_time_seconds", 0)
+                    st.success(
+                        f"🎉 **Research complete!** Analyzed {total_papers} papers in {processing_time:.1f}s"
+                    )
 
-                # Store final decisions
-                decisions.extend(final_result.get("decisions", []))
+                    # Store final decisions
+                    decisions.extend(final_result.get("decisions", []))
 
-                break  # End of stream
+                    break  # End of stream
 
-            elif event_type == "error":
-                # Error occurred
-                error_msg = event_data.get("message", "Unknown error")
-                st.error(f"❌ Error: {error_msg}")
+                elif event_type == "error":
+                    # Error occurred - check if it's a broken pipe (client disconnect)
+                    error_msg = event_data.get("message", "Unknown error")
+                    error_type = event_data.get("error", "")
+                    
+                    # Don't show broken pipe errors to users (these are normal client disconnects)
+                    if "Broken pipe" in error_msg or "Errno 32" in error_msg or error_type == "Connection error":
+                        logger.info(f"Client disconnected during streaming: {error_msg}")
+                        # Silently fall back to standard mode
+                        return None
+                    
+                    # Show other errors
+                    st.error(f"❌ Error: {error_msg}")
+                    return None
+
+        except (BrokenPipeError, OSError) as e:
+            # Handle broken pipe errors from SSE client iterator
+            if "Broken pipe" in str(e) or "Errno 32" in str(e) or (hasattr(e, 'errno') and e.errno == 32):
+                logger.info(f"Client disconnected during streaming (broken pipe from SSE client): {e}")
+                # Silently fall back to standard mode
                 return None
+            else:
+                # Re-raise to be caught by outer handler
+                raise
 
         return final_result
 
@@ -1836,8 +1888,34 @@ def stream_research_results(
             "⚠️ Cannot connect to streaming endpoint. Falling back to blocking mode."
         )
         return None
+    
+    except (BrokenPipeError, OSError) as e:
+        # Handle broken pipe errors (connection closed during streaming)
+        # These are normal when client disconnects - don't show error to user
+        if "Broken pipe" in str(e) or "Errno 32" in str(e) or (hasattr(e, 'errno') and e.errno == 32):
+            logger.info(f"Client disconnected during streaming (broken pipe): {e}")
+            # Silently fall back to standard mode - don't show error to user
+            return None
+        else:
+            logger.error(f"OS error during streaming: {e}", exc_info=True)
+            st.error(f"❌ Connection error: {str(e)}. Falling back to blocking mode.")
+        return None
+    
+    except requests.exceptions.ChunkedEncodingError:
+        # Handle chunked encoding errors (often related to broken pipes)
+        # These are often normal client disconnects - don't show error to user
+        logger.info("Chunked encoding error during streaming (connection may have closed)")
+        # Silently fall back to standard mode
+        return None
 
     except Exception as e:
+        # Check if it's a broken pipe error wrapped in another exception
+        error_str = str(e)
+        if "Broken pipe" in error_str or "Errno 32" in error_str:
+            logger.info(f"Client disconnected during streaming (broken pipe): {e}")
+            # Silently fall back to standard mode
+            return None
+        
         logger.error(f"Streaming error: {e}", exc_info=True)
         st.error(f"❌ Streaming failed: {str(e)}. Falling back to blocking mode.")
         return None

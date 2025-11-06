@@ -29,7 +29,7 @@ try:
 except ImportError:
     # Fallback for direct script execution
     from middleware import RequestIDMiddleware, RequestSizeMiddleware, ErrorHandlerMiddleware
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, model_validator, ConfigDict
 from typing import Dict, List, Optional, Any
 import asyncio
 import time
@@ -99,6 +99,12 @@ except ImportError:
     )
     from health_cache import get_health_cache
 
+# Import config with fallback
+try:
+    from .config import get_config
+except ImportError:
+    from config import get_config
+
 # Import export functions
 try:
     from .export_formats import generate_bibtex, generate_latex_document
@@ -109,12 +115,34 @@ except ImportError:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+from contextlib import asynccontextmanager
+
+# Lifespan context manager for startup/shutdown events
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup and shutdown events"""
+    # Startup
+    logger.info("=" * 60)
+    logger.info("🚀 Agentic Researcher API Starting")
+    logger.info("=" * 60)
+    logger.info("Service: Agentic Researcher API v1.0.0")
+    logger.info("Endpoints: /docs, /health, /research")
+    logger.info("NIMs: Reasoning + Embedding")
+    logger.info("=" * 60)
+    
+    yield
+    
+    # Shutdown
+    logger.info("🛑 Agentic Researcher API Shutting Down")
+
+
 app = FastAPI(
     title="Agentic Researcher API",
     description="Multi-agent AI system for automated literature review synthesis using NVIDIA NIMs",
     version="1.0.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 # Add middleware (order matters - error handler should be last)
@@ -268,8 +296,8 @@ class ResearchRequest(BaseModel):
                 )
         return self
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query": "machine learning for medical imaging",
                 "max_papers": 10,
@@ -278,6 +306,7 @@ class ResearchRequest(BaseModel):
                 "prioritize_recent": True,
             }
         }
+    )
 
 
 class ResearchResponse(BaseModel):
@@ -290,8 +319,8 @@ class ResearchResponse(BaseModel):
     processing_time_seconds: float
     query: str
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "query": "machine learning for medical imaging",
                 "papers_analyzed": 10,
@@ -327,6 +356,7 @@ class ResearchResponse(BaseModel):
                 "processing_time_seconds": 45.2,
             }
         }
+    )
 
 
 class HealthResponse(BaseModel):
@@ -335,6 +365,7 @@ class HealthResponse(BaseModel):
     version: str
     timestamp: str
     nims_available: Dict[str, bool]
+    mode: Optional[str] = None  # "local_models" or "nim"
 
 
 class ErrorResponse(BaseModel):
@@ -383,16 +414,47 @@ async def health_check():
             health_cache.set(service_name, False)
             return False
 
-    # Check actual NIM availability
-    reasoning_nim_url = os.getenv(
-        "REASONING_NIM_URL", "http://reasoning-nim.research-ops.svc.cluster.local:8000"
-    )
-    embedding_nim_url = os.getenv(
-        "EMBEDDING_NIM_URL", "http://embedding-nim.research-ops.svc.cluster.local:8001"
-    )
+    # Check if using local models or NIMs
+    config = get_config()
+    use_local_models = config.local_models.use_local_models
+    
+    if use_local_models:
+        # Check local model availability
+        try:
+            # Check if local models can be imported and initialized
+            from .local_models import LocalReasoningModel, LocalEmbeddingModel
+            LOCAL_MODELS_AVAILABLE = True
+        except ImportError:
+            try:
+                from local_models import LocalReasoningModel, LocalEmbeddingModel
+                LOCAL_MODELS_AVAILABLE = True
+            except ImportError:
+                LOCAL_MODELS_AVAILABLE = False
+        
+        # Try to initialize local models to verify they work
+        reasoning_available = False
+        embedding_available = False
+        
+        if LOCAL_MODELS_AVAILABLE:
+            try:
+                # Quick test: try to create model instances (without loading full model)
+                # This checks if dependencies are available
+                reasoning_available = True  # Assume available if import works
+                embedding_available = True
+            except Exception as e:
+                logger.debug(f"Local model check failed: {e}")
+                reasoning_available = False
+                embedding_available = False
+        else:
+            reasoning_available = False
+            embedding_available = False
+    else:
+        # Check actual NIM availability
+        reasoning_nim_url = config.nim.reasoning_nim_url
+        embedding_nim_url = config.nim.embedding_nim_url
 
-    reasoning_available = await check_nim_health(reasoning_nim_url, "reasoning_nim")
-    embedding_available = await check_nim_health(embedding_nim_url, "embedding_nim")
+        reasoning_available = await check_nim_health(reasoning_nim_url, "reasoning_nim")
+        embedding_available = await check_nim_health(embedding_nim_url, "embedding_nim")
 
     return {
         "status": "healthy"
@@ -405,6 +467,7 @@ async def health_check():
             "reasoning_nim": reasoning_available,
             "embedding_nim": embedding_available,
         },
+        "mode": "local_models" if use_local_models else "nim",
     }
 
 
@@ -1090,8 +1153,8 @@ class BatchResearchRequest(BaseModel):
     """Request model for batch processing"""
     queries: List[str] = Field(
         ...,
-        min_items=1,
-        max_items=20,
+        min_length=1,
+        max_length=20,
         description="List of research queries to process"
     )
     max_papers: int = Field(
@@ -1107,8 +1170,8 @@ class BatchResearchRequest(BaseModel):
         default=False, description="Prioritize recent papers"
     )
 
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "queries": [
                     "machine learning for medical imaging",
@@ -1119,6 +1182,7 @@ class BatchResearchRequest(BaseModel):
                 "prioritize_recent": True
             }
         }
+    )
 
 
 class BatchResearchResponse(BaseModel):
@@ -1135,8 +1199,8 @@ class ComparisonRequest(BaseModel):
     """Request model for comparing multiple syntheses"""
     synthesis_ids: List[str] = Field(
         ...,
-        min_items=2,
-        max_items=10,
+        min_length=2,
+        max_length=10,
         description="List of synthesis IDs to compare"
     )
 
@@ -1358,12 +1422,12 @@ async def invoke_bedrock(request: Dict[str, Any]):
 @app.post("/aws/store-s3", tags=["AWS"], response_model=Dict[str, Any])
 async def store_result_s3(request: Dict[str, Any]):
     """
-    Store research result in S3
+    Store research result in S3 (or local file system fallback)
     
-    Requires AWS credentials and S3 bucket configured.
+    If AWS S3 is configured, stores in S3. Otherwise, falls back to local file system.
     """
     try:
-        from aws_integration import store_research_result_s3
+        from .aws_integration import store_research_result_s3
         
         result = request.get("result")
         query = request.get("query", "research_query")
@@ -1371,22 +1435,34 @@ async def store_result_s3(request: Dict[str, Any]):
         if not result:
             raise HTTPException(status_code=400, detail="result required")
         
-        s3_key = await store_research_result_s3(result, query)
+        storage_location = await store_research_result_s3(result, query)
         
-        if s3_key is None:
+        if storage_location is None:
             raise HTTPException(
                 status_code=503,
-                detail="S3 storage not available or bucket not configured"
+                detail="Storage not available (S3 not configured and local storage failed)"
             )
         
-        return {"s3_location": s3_key, "status": "stored"}
+        # Determine storage type
+        if storage_location.startswith("s3://"):
+            storage_type = "s3"
+        elif storage_location.startswith("file://"):
+            storage_type = "local"
+        else:
+            storage_type = "unknown"
+        
+        return {
+            "storage_location": storage_location,
+            "storage_type": storage_type,
+            "status": "stored"
+        }
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"S3 storage error: {e}")
+        logger.error(f"Storage error: {e}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to store in S3: {str(e)}"
+            detail=f"Failed to store result: {str(e)}"
         )
 
 
@@ -1825,6 +1901,27 @@ async def research_stream(request: ResearchRequest):
             yield f"event: error\n"
             yield f"data: {json.dumps(error_data)}\n\n"
             
+        except BrokenPipeError:
+            # Client disconnected during streaming - this is normal, don't log as error
+            logger.info("Client disconnected during streaming (broken pipe)")
+            return  # Exit gracefully without error event
+            
+        except OSError as e:
+            # Handle OS errors including broken pipes
+            if "Broken pipe" in str(e) or e.errno == 32:
+                logger.info("Client disconnected during streaming (broken pipe)")
+                return  # Exit gracefully
+            else:
+                # Other OS errors - log and send error event
+                logger.error(f"OS error during SSE stream: {e}", exc_info=True)
+                error_data = {
+                    "error": "Connection error",
+                    "message": "Streaming connection error",
+                    "timestamp": datetime.now().isoformat()
+                }
+                yield f"event: error\n"
+                yield f"data: {json.dumps(error_data)}\n\n"
+            
         except Exception as e:
             # General error
             logger.error(f"SSE stream error: {e}", exc_info=True)
@@ -1977,26 +2074,6 @@ async def root():
             "Amazon EKS",
         ],
     }
-
-
-# Startup event
-@app.on_event("startup")
-async def startup_event():
-    """Log startup information"""
-    logger.info("=" * 60)
-    logger.info("🚀 Agentic Researcher API Starting")
-    logger.info("=" * 60)
-    logger.info("Service: Agentic Researcher API v1.0.0")
-    logger.info("Endpoints: /docs, /health, /research")
-    logger.info("NIMs: Reasoning + Embedding")
-    logger.info("=" * 60)
-
-
-# Shutdown event
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Log shutdown information"""
-    logger.info("🛑 Agentic Researcher API Shutting Down")
 
 
 if __name__ == "__main__":

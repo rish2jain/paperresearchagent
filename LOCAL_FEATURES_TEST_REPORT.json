@@ -1,0 +1,12 @@
+{
+  "timestamp": "2025-11-06T15:52:45.720894",
+  "features": {
+    "PDF Export": false,
+    "Word Export": false,
+    "SSE Streaming": false,
+    "Denario": false,
+    "Redis": false,
+    "Prometheus": false
+  },
+  "tests": []
+}

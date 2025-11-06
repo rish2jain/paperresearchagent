@@ -529,32 +529,50 @@ async def store_research_result_s3(
     query: str
 ) -> Optional[str]:
     """
-    Store research result in S3
+    Store research result in S3 (or local file system fallback)
     
     Args:
         result: Research synthesis result
         query: Research query
         
     Returns:
-        S3 object key or None
+        S3 object key (s3://...) or local file path (file://...) or None
     """
     import time
     from datetime import datetime
+    import json
+    from pathlib import Path
     
     bucket_name = os.getenv("RESEARCH_RESULTS_S3_BUCKET")
-    if not bucket_name:
-        logger.warning("RESEARCH_RESULTS_S3_BUCKET not configured")
-        return None
     
-    # Generate S3 key
+    # Generate storage key/path
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     query_slug = query.lower().replace(" ", "_")[:50]
     key = f"research_results/{query_slug}_{timestamp}.json"
     
-    aws = get_aws_integration()
-    success = await aws.store_result_in_s3(bucket_name, key, result)
+    # Try AWS S3 first if configured
+    if bucket_name:
+        aws = get_aws_integration()
+        success = await aws.store_result_in_s3(bucket_name, key, result)
+        
+        if success:
+            return f"s3://{bucket_name}/{key}"
     
-    if success:
-        return f"s3://{bucket_name}/{key}"
-    return None
+    # Fallback to local file system storage
+    try:
+        # Create local storage directory
+        local_storage_dir = Path(os.getenv("LOCAL_STORAGE_DIR", "~/.local/share/research-ops/results"))
+        local_storage_dir = Path(local_storage_dir).expanduser()
+        local_storage_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save to local file
+        local_file_path = local_storage_dir / f"{query_slug}_{timestamp}.json"
+        with open(local_file_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        logger.info(f"Stored research result locally: {local_file_path}")
+        return f"file://{local_file_path}"
+    except Exception as e:
+        logger.error(f"Local storage fallback failed: {e}")
+        return None
 

@@ -4,12 +4,15 @@ Combines dense retrieval (embeddings), sparse retrieval (BM25), and citation gra
 Uses Reciprocal Rank Fusion (RRF) to combine results
 """
 
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 import logging
 import asyncio
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from citation_graph import CitationGraph
 
 # Optional dependencies
 try:
@@ -43,7 +46,7 @@ class HybridRetriever:
     def __init__(
         self,
         embedding_client=None,
-        citation_graph: Optional[CitationGraph] = None
+        citation_graph: Optional["CitationGraph"] = None
     ):
         self.embedding_client = embedding_client
         self.citation_graph = citation_graph
